@@ -3,7 +3,8 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
-from planner.router import call_gemini, run_planner
+# CHANGED: Import call_llm instead of call_gemini
+from planner.router import call_llm, run_planner
 
 load_dotenv()
 
@@ -60,7 +61,7 @@ def planner_run():
     response = run_planner(prompt)
     return jsonify({"response": response})
 
-# Echo route (Gemini)
+# Echo route (LLM)
 @app.route("/echo", methods=["POST", "OPTIONS"])
 def echo():
     if request.method == "OPTIONS":
@@ -71,8 +72,9 @@ def echo():
     if not user_message:
         return jsonify({"response": "No message provided"}), 400
 
-    gemini_response = call_gemini(user_message)
-    return jsonify({"response": gemini_response})
+    # CHANGED: Use call_llm function
+    llm_response = call_llm(user_message)
+    return jsonify({"response": llm_response})
 
 if __name__ == "__main__":
     app.run(port=5050, debug=True)
