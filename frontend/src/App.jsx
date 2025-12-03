@@ -1,44 +1,110 @@
 import { useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import axios from "./axios"; // We MUST use the configured axios for credential handling
 
 import LoginPage from "./components/LoginPage";
 import Dashboard from "./components/Dashboard";
-import { echoTest } from "./api";
+// We don't need echoTest from ./api as we use axios directly to /planner/run
 import MicButton from "./components/MicButton";
 import ChatBubble from "./components/ChatBubble";
+import ApprovalModal from "./components/ApprovalModal"; // NEW: Import Modal component
 
 function App() {
   const [input, setInput] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
+  
+  // NEW State for Approval Modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [approvalProps, setApprovalProps] = useState({
+    message: "",
+    action: "",
+    params: {}
+  });
 
   const handleMicResult = (text) => {
     setInput(text);
   };
+  
+  // NEW: Function to handle approved action execution (calls /agent/execute)
+  const handleExecute = async () => {
+    const { action, params } = approvalProps;
+    setIsModalOpen(false); // Close modal immediately
+    
+    // Add pending message for execution feedback
+    setChatHistory(prev => [
+      ...prev, 
+      { message: `AGENT: Executing approved action: ${action}...\n(Check Console for API status)`, sender: "agent", pending: true }
+    ]);
+
+    try {
+      // Call the new execution endpoint
+      const res = await axios.post("/agent/execute", { action, params });
+      
+      // Get the response (e.g., Email successfully sent)
+      const executionMessage = res.data.message || "Action completed.";
+
+      // Find the pending message and replace it with the final result
+      setChatHistory(prev => prev.map(chat => 
+        chat.pending ? { message: executionMessage, sender: "agent", details: res.data.details } : chat
+      ));
+
+    } catch (err) {
+      setChatHistory(prev => prev.map(chat => 
+        chat.pending ? { message: "Error executing action ❌", sender: "agent" } : chat
+      ));
+      console.error("Execution failed:", err);
+    }
+  };
+
+  // NEW: Function to handle rejected action
+  const handleReject = () => {
+    setIsModalOpen(false);
+    setChatHistory(prev => [
+      ...prev,
+      { message: "AGENT: Action rejected. Task cancelled.", sender: "agent" }
+    ]);
+  };
+
 
   const handleSend = async () => {
     if (!input.trim()) return;
 
+    const userMessage = input.trim();
     // Add user message to chat
-    setChatHistory([...chatHistory, { message: input, sender: "user" }]);
+    setChatHistory(prev => [...prev, { message: userMessage, sender: "user" }]);
+    setInput(""); // clear input immediately
 
     try {
-      const res = await echoTest(input);
+      // Send message to the planner route (which now returns structured response)
+      const res = await axios.post("/planner/run", { prompt: userMessage });
+      const data = res.data;
 
-      // Add agent response to chat
-      setChatHistory(prev => [
-        ...prev,
-        { message: JSON.stringify(res), sender: "agent" }
-      ]);
+      // Handle structured response from backend
+      if (data.response_type === "APPROVAL") {
+        // Show approval modal
+        setApprovalProps({
+          message: data.message,
+          action: data.action,
+          params: data.params
+        });
+        setIsModalOpen(true);
+      } else {
+        // Handle RESULT, PLAN_ONLY, or ERROR response types
+        setChatHistory(prev => [
+          ...prev,
+          { message: data.response, sender: "agent" }
+        ]);
+      }
+
     } catch (err) {
       setChatHistory(prev => [
         ...prev,
-        { message: "Error connecting to backend ❌", sender: "agent" }
+        { message: "Error connecting to backend or running planner ❌", sender: "agent" }
       ]);
       console.error(err);
     }
-
-    setInput(""); // clear input after sending
   };
+
 
   return (
     <BrowserRouter>
@@ -57,7 +123,8 @@ function App() {
           }}
         >
           {chatHistory.map((chat, idx) => (
-            <ChatBubble key={idx} message={chat.message} sender={chat.sender} />
+            // Added check for chat.message to handle potential nulls
+            chat.message ? <ChatBubble key={idx} message={chat.message} sender={chat.sender} /> : null
           ))}
         </div>
 
@@ -67,13 +134,24 @@ function App() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
+            onKeyDown={(e) => { // Added support for hitting Enter to send
+              if (e.key === 'Enter') handleSend();
+            }}
+            placeholder="Type your command (e.g., 'Email HR the report')..."
             style={{ flex: 1, marginRight: "0.5rem", padding: "0.5rem" }}
           />
           <button onClick={handleSend} style={{ padding: "0.5rem 1rem" }}>
             Send
           </button>
         </div>
+        
+        {/* Approval Modal component */}
+        <ApprovalModal
+          isOpen={isModalOpen}
+          message={approvalProps.message}
+          onApprove={handleExecute}
+          onReject={handleReject}
+        />
 
         {/* Routes */}
         <Routes>
@@ -86,27 +164,3 @@ function App() {
 }
 
 export default App;
-import axios from "./axios"; // or wherever you handle API calls
-
-const handleSend = async () => {
-  if (!input.trim()) return;
-
-  // Add user message
-  setChatHistory([...chatHistory, { message: input, sender: "user" }]);
-
-  try {
-    const res = await axios.post("/planner/run", { prompt: input });
-    setChatHistory(prev => [
-      ...prev,
-      { message: res.data.response, sender: "agent" }
-    ]);
-  } catch (err) {
-    setChatHistory(prev => [
-      ...prev,
-      { message: "Error connecting to backend ❌", sender: "agent" }
-    ]);
-    console.error(err);
-  }
-
-  setInput("");
-};

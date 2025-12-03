@@ -2,11 +2,21 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 import os
+import json 
 from dotenv import load_dotenv
-# CHANGED: Import call_llm instead of call_gemini
+# FIX: Added path modification to ensure submodules are found when running from root
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__))) 
+
+# Imports for core logic
 from planner.router import call_llm, run_planner
+from agent.executor import parse_and_execute_plan, execute_action 
+from logs.log_utils import init_log_db, get_logs 
 
 load_dotenv()
+
+# Initialize log DB on startup
+init_log_db() 
 
 app = Flask(__name__)
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -50,18 +60,27 @@ def health():
 def root():
     return jsonify({"message": "Vocal Agent backend running"})
 
-# Planner route
+# Planner route (UPDATED to call the executor logic)
 @app.route("/planner/run", methods=["POST"])
 def planner_run():
     data = request.json
     prompt = data.get("prompt", "")
+    
+    if not session.get("user"):
+         return jsonify({"response_type": "ERROR", "response": "User not logged in. Please log in to run the planner."}), 401
+
     if not prompt:
-        return jsonify({"response": "No prompt provided"}), 400
+        return jsonify({"response_type": "ERROR", "response": "No prompt provided"}), 400
 
-    response = run_planner(prompt)
-    return jsonify({"response": response})
+    # 1. Get the LLM's plan
+    raw_plan = run_planner(prompt)
+    
+    # 2. Parse the plan and decide on the next action (Execution Engine)
+    execution_result = parse_and_execute_plan(raw_plan, prompt)
+    
+    return jsonify(execution_result) 
 
-# Echo route (LLM)
+# Echo route (LLM) - UNCHANGED
 @app.route("/echo", methods=["POST", "OPTIONS"])
 def echo():
     if request.method == "OPTIONS":
@@ -72,9 +91,51 @@ def echo():
     if not user_message:
         return jsonify({"response": "No message provided"}), 400
 
-    # CHANGED: Use call_llm function
     llm_response = call_llm(user_message)
     return jsonify({"response": llm_response})
+
+# NEW ROUTE: Final execution endpoint (called by frontend after user approval)
+@app.route("/agent/execute", methods=["POST"])
+def agent_execute():
+    data = request.json
+    action = data.get("action")
+    params = data.get("params")
+    
+    if not session.get("user"):
+         return jsonify({"success": False, "message": "User not logged in"}), 401
+
+    if not action or not params:
+        return jsonify({"success": False, "message": "Missing action or parameters"}), 400
+    
+    user_email = session["user"]["email"]
+    
+    # Execute the action using the executor
+    result = execute_action(action, params, user_email)
+    
+    return jsonify(result)
+
+# NEW ROUTE: Fetch logs
+@app.route("/logs", methods=["GET"])
+def logs_route():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    user_email = session["user"]["email"]
+    user_logs = get_logs(user_email)
+    
+    # Convert logs to a list of dicts for JSON serialization
+    log_list = []
+    for log in user_logs:
+        log_list.append({
+            "id": log[0], 
+            "timestamp": log[1], 
+            "action": log[3],
+            "status": log[4],
+            "details": json.loads(log[5]) 
+        })
+        
+    return jsonify({"logs": log_list})
+
 
 if __name__ == "__main__":
     app.run(port=5050, debug=True)

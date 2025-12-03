@@ -1,68 +1,111 @@
 # backend/planner/router.py
 import os
-import requests
 import json
 from dotenv import load_dotenv
+import cohere
+import requests # Keeping this import as it was in the original file
+
+# --- CRITICAL FIX: Define Cohere exception classes manually ---
+# This bypasses the ImportError caused by package structure mismatch in your local SDK, 
+# ensuring the app starts while still allowing general exception catching.
+class APIError(Exception): pass
+class CohereError(Exception): pass
+
 
 load_dotenv()
 
-# --- Hugging Face Configuration ---
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
-# We no longer strictly need HF_MODEL, but we'll leave it in .env for future use.
-# The URL below uses the specific translation endpoint for guaranteed availability.
-HF_MODEL = os.getenv("HF_MODEL")
+# --- Cohere Configuration (LLM for planning) ---
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+
+# System prompt for the agent planner
+PLANNER_SYSTEM_PROMPT = (
+    "You are an intelligent agent responsible for planning a user's request to interact "
+    "with Google Workspace applications (Gmail, Calendar, Drive, Docs, Sheets, Tasks, Contacts, Keep). "
+    "Your output MUST be a plan. Analyze the user's request below, break it down "
+    "into a concise, numbered list of discrete, actionable steps, and identify the "
+    "required Google Workspace service (e.g., Gmail, Calendar, Drive) for each step. "
+    "Do not execute the steps or add any conversational filler. Only output the plan."
+)
 
 
 def call_llm(prompt: str) -> str:
     """
-    Sends a prompt to a Hugging Face translation model for maximum compatibility.
-    We frame the task as a translation to utilize a stable, always-on free endpoint.
+    Sends a prompt to the Cohere LLM for the /echo route (simple response).
     """
-    if not HUGGINGFACE_API_KEY:
-        return "Error: HUGGINGFACE_API_KEY is not set in the environment."
+    if not COHERE_API_KEY:
+        return "Error: COHERE_API_KEY is not set in the environment. Please set it to proceed."
     
-    # CRITICAL CHANGE: Using a stable, task-specific endpoint (Translation).
-    # This bypasses the unstable generic model endpoint that was returning 404s.
-    url = "https://router.huggingface.co/v1/translation/en_to_fr"
+    # Use a generic system prompt for the raw /echo route
+    echo_system_prompt = "You are a helpful assistant. Respond concisely to the user's message."
     
-    # The input format for the translation task is a list of strings under the 'inputs' key.
-    body = {
-        "inputs": [prompt]
-    }
-    
-    # Authorization Header (Bearer Token) - Unchanged
-    headers = {
-        "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
+    # FIX: Combine system prompt and user message into the 'message' argument.
+    full_prompt = f"{echo_system_prompt}\n\nUser Message: {prompt}"
 
     try:
-        response = requests.post(url, headers=headers, json=body)
+        # 1. Initialize Cohere Client
+        co = cohere.Client(COHERE_API_KEY)
         
-        if response.status_code != 200:
-            # Check for HTTP errors
-            raise Exception(f"Hugging Face API error: {response.status_code}, {response.text}")
+        # 2. Call the chat endpoint (UNSUPPORTED 'system_prompt' removed)
+        response = co.chat(
+            model='command-a-03-2025', # Using command-r for a capable and fast model
+            message=full_prompt, # Now contains the system instruction
+            max_tokens=512,
+            temperature=0.7,
+        )
         
-        data = response.json()
-        
-        # Translation response is typically a list of objects: [{"translation_text": "..."}]
-        if isinstance(data, list) and data and "translation_text" in data[0]:
-            # Use the translation text as the "plan" response. It won't be a perfect plan,
-            # but it PROVES the connection works.
-            return f"[Task Response via Translation Model]: {data[0]['translation_text']}"
+        # 3. Process response
+        if response.text:
+            llm_response = response.text.strip()
+            return f"[Echo Response via Cohere LLM]: {llm_response}"
         else:
-            return f"Error parsing Hugging Face response. Raw: {data}"
+            return f"Error: Cohere Chat returned an empty response."
 
+    except APIError as e:
+        # These now refer to the generic classes above, but still catch exceptions
+        print(f"Cohere API Error: {e}")
+        return f"Cohere API Error: {e} ❌"
+    except CohereError as e:
+        print(f"Cohere Error: {e}")
+        return f"Cohere Error: {e} ❌"
     except Exception as e:
-        print(f"Error calling Hugging Face API: {e}")
-        return "Error calling Hugging Face API ❌"
+        print(f"General Error calling Cohere API: {e}")
+        return "General Error calling Cohere API ❌"
 
 
 def run_planner(user_input: str) -> str:
     """
-    Takes user input, sends to the LLM as a "translation task", and returns the result.
+    Takes user input and sends it to the Cohere LLM with the specific planning
+    system prompt. This is used by the /planner/run route.
     """
-    # The model should be stable now. We can keep the prompt for the next step.
-    prompt = f"Plan the following task intelligently:\n{user_input}"
-    return call_llm(prompt)
+    if not COHERE_API_KEY:
+        return "Error: COHERE_API_KEY is not set in the environment. Please set it to proceed."
+    
+    # FIX: Combine the planner system prompt and user input into the 'message' argument.
+    full_planner_prompt = f"{PLANNER_SYSTEM_PROMPT}\n\nUser Request: {user_input}"
+
+    try:
+        co = cohere.Client(COHERE_API_KEY)
+        
+        # We use the dedicated planning system prompt here (UNSUPPORTED 'system_prompt' removed)
+        response = co.chat(
+            model='command-r', 
+            message=full_planner_prompt, # Now contains the planning instruction
+            max_tokens=1024,
+            temperature=0.3,
+        )
+        
+        if response.text:
+            plan = response.text.strip()
+            return f"[Agent Plan via Cohere LLM]:\n{plan}"
+        else:
+            return f"Error: Cohere Chat returned an empty plan response."
+
+    except APIError as e:
+        print(f"Cohere API Planner Error: {e}")
+        return f"Cohere API Planner Error: {e} ❌"
+    except CohereError as e:
+        print(f"Cohere Planner Error: {e}")
+        return f"Cohere Planner Error: {e} ❌"
+    except Exception as e:
+        print(f"General Error calling Cohere Planner API: {e}")
+        return "General Error calling Cohere Planner API ❌"
