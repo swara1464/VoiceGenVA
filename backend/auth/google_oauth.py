@@ -3,6 +3,13 @@ from flask import Blueprint, redirect, session, request
 from oauthlib.oauth2 import WebApplicationClient
 import requests
 import os
+from flask import jsonify
+from dotenv import load_dotenv 
+
+# CRITICAL FIX: Load environment variables directly in this module 
+# to ensure GOOGLE_CLIENT_ID/SECRET are available when module-level 
+# variables (CLIENT_SECRET, client) are initialized.
+load_dotenv() 
 
 # ✅ Allowed tester emails
 ALLOWED_TESTERS = ["swarapawanekar@gmail.com", "other.tester@gmail.com"]
@@ -23,7 +30,10 @@ def login():
             "https://www.googleapis.com/auth/gmail.send",
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/drive.readonly"
-        ]
+        ],
+        # CRITICAL FIX: Request refresh token for long-term API access
+        access_type="offline",
+        prompt="consent"
     )
     return redirect(authorization_url)
 
@@ -48,7 +58,19 @@ def callback():
     client.parse_request_body_response(token_response.text)
 
     # Save token
-    session["google_token"] = token_response.json()
+    token_data = token_response.json()
+    
+    # CRITICAL FIX: Add ALL required fields for Credentials.from_authorized_user_info
+    token_data["client_id"] = os.getenv("GOOGLE_CLIENT_ID")
+    token_data["client_secret"] = os.getenv("GOOGLE_CLIENT_SECRET")
+    
+    # Final Fix: Explicitly add token_uri and scopes for robust Credentials object creation
+    token_data["token_uri"] = "https://oauth2.googleapis.com/token" 
+    # Get the scopes from the callback request URL
+    token_data["scopes"] = request.args.get("scope").split(" ") if request.args.get("scope") else [] 
+    
+    session["google_token"] = token_data
+
 
     # Get Google user info
     userinfo = requests.get(
@@ -81,5 +103,5 @@ def me():
 @google_bp.route("/logout")
 def logout():
     session.clear()
-    # Redirect to frontend login page after logout
-    return redirect("http://localhost:5173/")
+    # FIX: Return a JSON success response instead of redirecting (302).
+    return jsonify({"success": True}), 200

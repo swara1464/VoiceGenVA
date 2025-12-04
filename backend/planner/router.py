@@ -47,7 +47,7 @@ def call_llm(prompt: str) -> str:
         
         # 2. Call the chat endpoint (UNSUPPORTED 'system_prompt' removed)
         response = co.chat(
-            model='command-a-03-2025', # Using command-r for a capable and fast model
+            model='command-a-03-2025', # Using command-a-03-2025 for a capable and fast model
             message=full_prompt, # Now contains the system instruction
             max_tokens=512,
             temperature=0.7,

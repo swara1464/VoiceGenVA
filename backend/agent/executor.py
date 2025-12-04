@@ -65,8 +65,46 @@ def parse_and_execute_plan(raw_plan: str, user_input: str):
 
     # --- Step 1: Intent Classification (Based on plan output) ---
     
-    # 1. GMAIL/EMAIL Intent
-    if "GMAIL" in normalized_plan or "EMAIL" in normalized_plan or "SEND" in normalized_plan:
+    # 1. DRIVE/SEARCH Intent (PRIORITIZED)
+    if "DRIVE" in normalized_plan or "SEARCH" in normalized_plan:
+        # Simple extraction of the search query
+        query_match = re.search(r"SEARCH (.+?)", normalized_plan)
+        query = query_match.group(1).strip() if query_match else "latest files"
+        
+        # Search executes immediately
+        result = execute_action("DRIVE_SEARCH", {"query": query}, user_email)
+        
+        if result['success'] and 'details' in result:
+            drive_response = f"{result['message']} Found:"
+            # Added a check to ensure 'details' is iterable
+            if isinstance(result['details'], list):
+                for file in result['details']:
+                     drive_response += f"\n- {file['name']} ({file['link']})"
+            return {"response_type": "RESULT", "response": drive_response}
+        else:
+            return {"response_type": "RESULT", "response": result['message']}
+
+    # 2. CALENDAR/EVENT Intent (PRIORITIZED)
+    elif "CALENDAR" in normalized_plan or "EVENT" in normalized_plan or "SCHEDULE" in normalized_plan:
+        # Simplified parameters for demo
+        action = "CALENDAR_CREATE"
+        params = {
+            "summary": f"Vocal Agent: {user_input[:40]}...",
+            "description": user_input, # Use the full input as description
+            "start_time": "2025-12-04T10:00:00-07:00", # Fixed demo time 
+            "end_time": "2025-12-04T11:00:00-07:00", 
+            "attendees": [user_email] 
+        }
+
+        return {
+            "response_type": "APPROVAL",
+            "action": action,
+            "message": f"Ready to schedule an event for tomorrow at 10 AM. Do you approve?",
+            "params": params
+        }
+
+    # 3. GMAIL/EMAIL Intent (DE-PRIORITIZED)
+    elif "GMAIL" in normalized_plan or "EMAIL" in normalized_plan or "SEND" in normalized_plan:
         
         # Simplified extraction: target email, subject, body 
         to_match = re.search(r"(\S+@\S+)", normalized_plan)
@@ -86,42 +124,6 @@ def parse_and_execute_plan(raw_plan: str, user_input: str):
             "params": params
         }
 
-    # 2. CALENDAR/EVENT Intent
-    elif "CALENDAR" in normalized_plan or "EVENT" in normalized_plan or "SCHEDULE" in normalized_plan:
-        # Simplified parameters for demo
-        action = "CALENDAR_CREATE"
-        params = {
-            "summary": f"Vocal Agent: {user_input[:40]}...",
-            "description": user_input, # Use the full input as description
-            "start_time": "2025-12-04T10:00:00-07:00", # Fixed demo time 
-            "end_time": "2025-12-04T11:00:00-07:00", 
-            "attendees": [user_email] 
-        }
-
-        return {
-            "response_type": "APPROVAL",
-            "action": action,
-            "message": f"Ready to schedule an event for tomorrow at 10 AM. Do you approve?",
-            "params": params
-        }
-
-    # 3. DRIVE/SEARCH Intent
-    elif "DRIVE" in normalized_plan or "SEARCH" in normalized_plan:
-        # Simple extraction of the search query
-        query_match = re.search(r"SEARCH (.+?)", normalized_plan)
-        query = query_match.group(1).strip() if query_match else "latest files"
-        
-        # Search executes immediately
-        result = execute_action("DRIVE_SEARCH", {"query": query}, user_email)
-        
-        if result['success']:
-            drive_response = f"{result['message']} Found:"
-            for file in result['details']:
-                 drive_response += f"\n- {file['name']} ({file['link']})"
-            return {"response_type": "RESULT", "response": drive_response}
-        else:
-            return {"response_type": "RESULT", "response": result['message']}
-            
     # 4. Fallback (If the plan cannot be mapped to an action)
     else:
         return {"response_type": "PLAN_ONLY", "response": raw_plan}
