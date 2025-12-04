@@ -29,9 +29,12 @@ def login():
             "openid", "email", "profile",
             "https://www.googleapis.com/auth/gmail.send",
             "https://www.googleapis.com/auth/calendar.events",
-            "https://www.googleapis.com/auth/drive.readonly"
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/contacts.readonly"
         ],
-        # CRITICAL FIX: Request refresh token for long-term API access
         access_type="offline",
         prompt="consent"
     )

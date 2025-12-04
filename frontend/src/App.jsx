@@ -1,68 +1,80 @@
 import { useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "./axios"; // We MUST use the configured axios for credential handling
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import axios from "./axios";
 
 import LoginPage from "./components/LoginPage";
 import Dashboard from "./components/Dashboard";
-// We don't need echoTest from ./api as we use axios directly to /planner/run
+import History from "./components/History";
 import MicButton from "./components/MicButton";
 import ChatBubble from "./components/ChatBubble";
-import ApprovalModal from "./components/ApprovalModal"; // NEW: Import Modal component
+import ApprovalModal from "./components/ApprovalModal";
 
 function App() {
   const [input, setInput] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
-  
-  // NEW State for Approval Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [approvalProps, setApprovalProps] = useState({
     message: "",
     action: "",
     params: {}
   });
+  const [isTTSEnabled, setIsTTSEnabled] = useState(true);
+
+  const speakText = (text) => {
+    if (!isTTSEnabled || !window.speechSynthesis) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleMicResult = (text) => {
     setInput(text);
   };
   
-  // NEW: Function to handle approved action execution (calls /agent/execute)
   const handleExecute = async () => {
     const { action, params } = approvalProps;
-    setIsModalOpen(false); // Close modal immediately
-    
-    // Add pending message for execution feedback
+    setIsModalOpen(false);
+
+    const executingMessage = `Executing approved action: ${action}...`;
     setChatHistory(prev => [
-      ...prev, 
-      { message: `AGENT: Executing approved action: ${action}...\n(Check Console for API status)`, sender: "agent", pending: true }
+      ...prev,
+      { message: executingMessage, sender: "agent", pending: true }
     ]);
 
     try {
-      // Call the new execution endpoint
       const res = await axios.post("/agent/execute", { action, params });
-      
-      // Get the response (e.g., Email successfully sent)
       const executionMessage = res.data.message || "Action completed.";
 
-      // Find the pending message and replace it with the final result
-      setChatHistory(prev => prev.map(chat => 
+      setChatHistory(prev => prev.map(chat =>
         chat.pending ? { message: executionMessage, sender: "agent", details: res.data.details } : chat
       ));
 
+      speakText(executionMessage);
+
     } catch (err) {
-      setChatHistory(prev => prev.map(chat => 
-        chat.pending ? { message: "Error executing action ❌", sender: "agent" } : chat
+      const errorMessage = "Error executing action";
+      setChatHistory(prev => prev.map(chat =>
+        chat.pending ? { message: errorMessage, sender: "agent" } : chat
       ));
+      speakText(errorMessage);
       console.error("Execution failed:", err);
     }
   };
 
-  // NEW: Function to handle rejected action
   const handleReject = () => {
     setIsModalOpen(false);
+    const rejectMessage = "Action rejected. Task cancelled.";
     setChatHistory(prev => [
       ...prev,
-      { message: "AGENT: Action rejected. Task cancelled.", sender: "agent" }
+      { message: rejectMessage, sender: "agent" }
     ]);
+    speakText(rejectMessage);
   };
 
 
@@ -70,94 +82,157 @@ function App() {
     if (!input.trim()) return;
 
     const userMessage = input.trim();
-    // Add user message to chat
     setChatHistory(prev => [...prev, { message: userMessage, sender: "user" }]);
-    setInput(""); // clear input immediately
+    setInput("");
 
     try {
-      // Send message to the planner route (which now returns structured response)
       const res = await axios.post("/planner/run", { prompt: userMessage });
       const data = res.data;
 
-      // Handle structured response from backend
       if (data.response_type === "APPROVAL") {
-        // Show approval modal
         setApprovalProps({
           message: data.message,
           action: data.action,
           params: data.params
         });
         setIsModalOpen(true);
+        speakText(data.message);
       } else {
-        // Handle RESULT, PLAN_ONLY, or ERROR response types
+        const agentMessage = data.response;
         setChatHistory(prev => [
           ...prev,
-          { message: data.response, sender: "agent" }
+          { message: agentMessage, sender: "agent" }
         ]);
+        speakText(agentMessage);
       }
 
     } catch (err) {
+      const errorMessage = "Error connecting to backend or running planner";
       setChatHistory(prev => [
         ...prev,
-        { message: "Error connecting to backend or running planner ❌", sender: "agent" }
+        { message: errorMessage, sender: "agent" }
       ]);
+      speakText(errorMessage);
       console.error(err);
     }
   };
 
 
-  return (
-    <BrowserRouter>
-      <div style={{ padding: "2rem", fontFamily: "Arial" }}>
-        <h1>Vocal Agent Test</h1>
+  const VocalAgentHome = () => (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <h2 style={{ margin: 0 }}>Voice Command Interface</h2>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={isTTSEnabled}
+              onChange={(e) => setIsTTSEnabled(e.target.checked)}
+            />
+            <span>Voice Response</span>
+          </label>
+          <Link to="/history" style={{ padding: "0.5rem 1rem", backgroundColor: "#007bff", color: "white", textDecoration: "none", borderRadius: "5px" }}>
+            History
+          </Link>
+          <Link to="/dashboard" style={{ padding: "0.5rem 1rem", backgroundColor: "#28a745", color: "white", textDecoration: "none", borderRadius: "5px" }}>
+            Profile
+          </Link>
+        </div>
+      </div>
 
-        {/* Chat area */}
-        <div
+      <div
+        style={{
+          border: "1px solid #ddd",
+          padding: "1.5rem",
+          borderRadius: "12px",
+          minHeight: "400px",
+          maxHeight: "500px",
+          overflowY: "auto",
+          marginBottom: "1.5rem",
+          backgroundColor: "#f9f9f9",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+        }}
+      >
+        {chatHistory.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "3rem", color: "#666" }}>
+            <p style={{ fontSize: "1.2rem", marginBottom: "1rem" }}>Welcome to Vocal Agent</p>
+            <p>Try commands like:</p>
+            <ul style={{ listStyle: "none", padding: 0, lineHeight: "2" }}>
+              <li>"Search Drive for project files"</li>
+              <li>"Create a task to complete the report"</li>
+              <li>"Schedule a meeting tomorrow at 2 PM"</li>
+              <li>"List my contacts"</li>
+            </ul>
+          </div>
+        ) : (
+          chatHistory.map((chat, idx) => (
+            chat.message ? <ChatBubble key={idx} message={chat.message} sender={chat.sender} /> : null
+          ))
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <MicButton onResult={handleMicResult} />
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSend();
+          }}
+          placeholder="Type or speak your command..."
           style={{
-            border: "1px solid #ccc",
-            padding: "1rem",
+            flex: 1,
+            padding: "0.75rem",
+            fontSize: "1rem",
+            border: "1px solid #ddd",
             borderRadius: "8px",
-            maxHeight: "300px",
-            overflowY: "auto",
-            marginBottom: "1rem"
+            outline: "none"
+          }}
+        />
+        <button
+          onClick={handleSend}
+          style={{
+            padding: "0.75rem 1.5rem",
+            fontSize: "1rem",
+            backgroundColor: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "bold"
           }}
         >
-          {chatHistory.map((chat, idx) => (
-            // Added check for chat.message to handle potential nulls
-            chat.message ? <ChatBubble key={idx} message={chat.message} sender={chat.sender} /> : null
-          ))}
-        </div>
+          Send
+        </button>
+      </div>
 
-        {/* Input + Mic */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: "2rem" }}>
-          <MicButton onResult={handleMicResult} />
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { // Added support for hitting Enter to send
-              if (e.key === 'Enter') handleSend();
-            }}
-            placeholder="Type your command (e.g., 'Email HR the report')..."
-            style={{ flex: 1, marginRight: "0.5rem", padding: "0.5rem" }}
-          />
-          <button onClick={handleSend} style={{ padding: "0.5rem 1rem" }}>
-            Send
-          </button>
-        </div>
-        
-        {/* Approval Modal component */}
-        <ApprovalModal
-          isOpen={isModalOpen}
-          message={approvalProps.message}
-          onApprove={handleExecute}
-          onReject={handleReject}
-        />
+      <ApprovalModal
+        isOpen={isModalOpen}
+        message={approvalProps.message}
+        onApprove={handleExecute}
+        onReject={handleReject}
+      />
+    </div>
+  );
 
-        {/* Routes */}
-        <Routes>
-          <Route path="/" element={<LoginPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Routes>
+  return (
+    <BrowserRouter>
+      <div style={{
+        minHeight: "100vh",
+        padding: "2rem",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        backgroundColor: "#f5f5f5"
+      }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <h1 style={{ marginBottom: "2rem", color: "#333" }}>Vocal Agent</h1>
+
+          <Routes>
+            <Route path="/" element={<LoginPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/agent" element={<VocalAgentHome />} />
+            <Route path="/history" element={<History />} />
+          </Routes>
+        </div>
       </div>
     </BrowserRouter>
   );
