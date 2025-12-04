@@ -3,14 +3,6 @@ import os
 import json
 from dotenv import load_dotenv
 import cohere
-import requests # Keeping this import as it was in the original file
-
-# --- CRITICAL FIX: Define Cohere exception classes manually ---
-# This bypasses the ImportError caused by package structure mismatch in your local SDK, 
-# ensuring the app starts while still allowing general exception catching.
-class APIError(Exception): pass
-class CohereError(Exception): pass
-
 
 load_dotenv()
 
@@ -99,16 +91,9 @@ def call_llm(prompt: str) -> str:
         else:
             return f"Error: Cohere Chat returned an empty response."
 
-    except APIError as e:
-        # These now refer to the generic classes above, but still catch exceptions
-        print(f"Cohere API Error: {e}")
-        return f"Cohere API Error: {e} ❌"
-    except CohereError as e:
-        print(f"Cohere Error: {e}")
-        return f"Cohere Error: {e} ❌"
     except Exception as e:
-        print(f"General Error calling Cohere API: {e}")
-        return "General Error calling Cohere API ❌"
+        print(f"Error calling Cohere API: {e}")
+        return f"Error calling Cohere API: {str(e)}"
 
 
 def run_planner(user_input: str) -> str:
@@ -139,12 +124,6 @@ def run_planner(user_input: str) -> str:
         else:
             return f"Error: Cohere Chat returned an empty plan response."
 
-    except APIError as e:
-        print(f"Cohere API Planner Error: {e}")
-        return f"Cohere API Planner Error: {e} ❌"
-    except CohereError as e:
-        print(f"Cohere Planner Error: {e}")
-        return f"Cohere Planner Error: {e} ❌"
     except Exception as e:
-        print(f"General Error calling Cohere Planner API: {e}")
-        return "General Error calling Cohere Planner API ❌"
+        print(f"Error calling Cohere Planner API: {e}")
+        return f"Error calling Cohere Planner API: {str(e)}"

@@ -45,16 +45,43 @@ export default function MicButton({ onResult }) {
     <button
       onClick={handleToggle}
       style={{
-        padding: "0.5rem 1rem",
-        backgroundColor: listening ? "red" : "#4CAF50",
+        padding: "0.9rem 1.5rem",
+        backgroundColor: listening ? "#d32f2f" : "#2e7d32",
         color: "white",
         border: "none",
-        borderRadius: "5px",
+        borderRadius: "10px",
         cursor: "pointer",
-        marginRight: "1rem",
+        fontWeight: "600",
+        fontSize: "1rem",
+        transition: "all 0.2s",
+        boxShadow: listening
+          ? "0 0 20px rgba(211, 47, 47, 0.5)"
+          : "0 2px 8px rgba(46, 125, 50, 0.3)",
+        animation: listening ? "pulse 1.5s infinite" : "none"
+      }}
+      onMouseEnter={(e) => {
+        if (!listening) {
+          e.target.style.backgroundColor = "#1b5e20";
+          e.target.style.transform = "translateY(-1px)";
+          e.target.style.boxShadow = "0 4px 12px rgba(46, 125, 50, 0.4)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!listening) {
+          e.target.style.backgroundColor = "#2e7d32";
+          e.target.style.transform = "translateY(0)";
+          e.target.style.boxShadow = "0 2px 8px rgba(46, 125, 50, 0.3)";
+        }
       }}
     >
-      {listening ? "Listening..." : "🎤 Speak"}
+      {listening ? (
+        <span>
+          <span style={{ display: "inline-block", animation: "bounce 0.6s infinite" }}>🎤</span>
+          {" "}Listening...
+        </span>
+      ) : (
+        "🎤 Speak"
+      )}
     </button>
   );
 }
