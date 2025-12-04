@@ -88,7 +88,7 @@ def run_planner(user_input: str) -> str:
         
         # We use the dedicated planning system prompt here (UNSUPPORTED 'system_prompt' removed)
         response = co.chat(
-            model='command-r', 
+            model='command-a-03-2025', 
             message=full_planner_prompt, # Now contains the planning instruction
             max_tokens=1024,
             temperature=0.3,
