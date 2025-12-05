@@ -41,9 +41,19 @@ app.config.update(
 from auth.google_oauth import google_bp
 app.register_blueprint(google_bp, url_prefix="/auth")
 
+
 # Add CORS headers after each request
 @app.after_request
 def after_request(response):
+    # DYNAMIC CORS HEADER: Set Access-Control-Allow-Origin to the requesting origin if credentials are used
+    origin = request.headers.get('Origin')
+    # Check if the origin is one of our allowed origins (including the wildcard pattern)
+    if origin in ["https://voicegenva.onrender.com", "http://localhost:5173"] or (origin and 'onrender.com' in origin):
+        response.headers.add("Access-Control-Allow-Origin", origin)
+    else:
+        # Default to the primary production host if origin is not recognized
+        response.headers.add("Access-Control-Allow-Origin", "https://voicegenva.onrender.com")
+
     response.headers.add("Access-Control-Allow-Credentials", "true")
     response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
     response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")

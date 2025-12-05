@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+executions.db
+sessions.db
