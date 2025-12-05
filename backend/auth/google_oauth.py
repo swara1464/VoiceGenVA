@@ -17,7 +17,7 @@ ALLOWED_TESTERS = ["swarapawanekar@gmail.com", "other.tester@gmail.com"]
 google_bp = Blueprint("google_bp", __name__)
 client = WebApplicationClient(os.getenv("GOOGLE_CLIENT_ID"))
 CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = "http://localhost:5050/auth/callback"
+REDIRECT_URI = "https://vocalagentapi.onrender.com/auth/callback"
 
 # 1️⃣ Login route
 @google_bp.route("/login")
@@ -93,7 +93,7 @@ def callback():
     }
 
     # Redirect to frontend dashboard
-    return redirect("http://localhost:5173/dashboard?login=success")
+    return redirect("https://voicegenva.onrender.com/dashboard?login=success")
 
 # 3️⃣ Check login status
 @google_bp.route("/me")

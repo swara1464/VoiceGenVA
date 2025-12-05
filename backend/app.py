@@ -24,7 +24,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 # CORS configuration
 CORS(
     app,
-    origins=["http://localhost:5173"],
+    origins=["https://voicegenva.onrender.com", "http://localhost:5173", "https://*.onrender.com"],
     supports_credentials=True,
     allow_headers=["Content-Type", "Authorization"],
     methods=["GET", "POST", "OPTIONS"]
@@ -34,7 +34,7 @@ CORS(
 app.secret_key = os.getenv("SESSION_SECRET", "dev_default_key")
 app.config.update(
     SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=False,  # Only because we are on localhost
+    SESSION_COOKIE_SECURE=True, # Enforce secure cookie for HTTPS deployment
 )
 
 # Register Google OAuth blueprint
@@ -44,7 +44,6 @@ app.register_blueprint(google_bp, url_prefix="/auth")
 # Add CORS headers after each request
 @app.after_request
 def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
     response.headers.add("Access-Control-Allow-Credentials", "true")
     response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
     response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
