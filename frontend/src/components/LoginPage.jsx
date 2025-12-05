@@ -2,7 +2,7 @@ import React from "react";
 
 export default function LoginPage() {
   const handleLogin = () => {
-    window.open("http://localhost:5050/auth/login", "_self");
+    window.open("https://vocalagentapi.onrender.com", "_self");
   };
 
   return (
