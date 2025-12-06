@@ -128,24 +128,14 @@ def agent_execute():
 def logs_route():
     if "user" not in session:
         return jsonify({"error": "Not logged in"}), 401
-    
+
     user_email = session["user"]["email"]
     user_logs = get_logs(user_email)
-    
-    # Convert logs to a list of dicts for JSON serialization
-    log_list = []
-    for log in user_logs:
-        log_list.append({
-            "id": log[0], 
-            "timestamp": log[1], 
-            "action": log[3],
-            "status": log[4],
-            "details": json.loads(log[5]) 
-        })
-        
-    return jsonify({"logs": log_list})
+
+    return jsonify({"logs": user_logs})
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    is_production = os.environ.get("FLASK_ENV") == "production"
+    app.run(host="0.0.0.0", port=port, debug=not is_production)
