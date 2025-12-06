@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 import jwt
 import datetime
+import json # ADDED
+from backend.models.session_store import store_token # ADDED
 
 # Load environment variables
 load_dotenv() 
@@ -91,6 +93,10 @@ def callback():
         "name": userinfo.get("name"),
         "picture": userinfo.get("picture"),
     }
+    
+    # 🔥 CRITICAL FIX: Persist the token to the SQLite database
+    # The session_store.py/SQLite implementation is now called here.
+    store_token(email, json.dumps(token_data))
 
     # ✅ Generate JWT token
     payload = {
