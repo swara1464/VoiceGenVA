@@ -41,7 +41,7 @@ def login():
     return redirect(authorization_url)
 
 # 2️⃣ Callback route
-@google_bp.route("/callback")
+@google_bp.route("/callback", strict_slashes=False)
 def callback():
     code = request.args.get("code")
     if not code:
