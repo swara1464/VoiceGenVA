@@ -6,20 +6,20 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import session
 import sqlite3
-from backend.models.session_store import store_token, init_db
-import os
+import json # ADDED
+from backend.models.session_store import store_token, init_db, get_token # MODIFIED: imported get_token
 
 init_db()  # ensure DB exists
 
 def get_token_from_db(user_email):
-    conn = sqlite3.connect("sessions.db")
-    c = conn.cursor()
-    c.execute("SELECT token_json FROM sessions WHERE user_email=?", (user_email,))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        import json
-        return json.loads(row[0])
+    """
+    Retrieves the token JSON string from the SQLite database using the imported get_token function.
+    (This function name is still used in this file's get_google_service for backward compatibility
+    with the original logic).
+    """
+    token_json_str = get_token(user_email)
+    if token_json_str:
+        return json.loads(token_json_str)
     return None
 
 def get_google_service(api_name: str, api_version: str, user_email=None):
@@ -28,7 +28,8 @@ def get_google_service(api_name: str, api_version: str, user_email=None):
     """
     token_data = session.get("google_token")
     if not token_data and user_email:
-        token_data = get_token_from_db(user_email)
+        # If token is not in the ephemeral session, look up the persisted token
+        token_data = get_token_from_db(user_email) # Calls the function that uses session_store.get_token()
 
     if not token_data:
         return None, "Error: Google token not found. Please re-login."
@@ -53,7 +54,8 @@ def send_draft_email(to: str, subject: str, body: str, user_email=None):
     """
     Creates and sends an email using Gmail API. Falls back to DB token if session missing.
     """
-    service, error = get_google_service("gmail", "v1", user_email)
+    # 🔥 CRITICAL FIX: Pass user_email to get_google_service
+    service, error = get_google_service("gmail", "v1", user_email) # MODIFIED
     if error:
         return {"success": False, "message": error}
 
@@ -67,4 +69,3 @@ def send_draft_email(to: str, subject: str, body: str, user_email=None):
         }
     except Exception as e:
         return {"success": False, "message": f"Failed to send email: {e}"}
-
