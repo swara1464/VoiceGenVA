@@ -7,7 +7,7 @@ from googleapiclient.discovery import build
 from flask import session
 import sqlite3
 import json # ADDED
-from backend.models.session_store import store_token, init_db, get_token # MODIFIED: imported get_token
+from session_store import store_token, init_db, get_token # MODIFIED: imported get_token
 
 init_db()  # ensure DB exists
 
