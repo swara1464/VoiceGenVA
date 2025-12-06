@@ -95,7 +95,10 @@ def callback():
     token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
     # Redirect to frontend with token
-    return redirect(f"https://voicegenva.onrender.com/dashboard?login=success&token={token}")
+    return make_response(
+    redirect(f"https://voicegenva.onrender.com/dashboard?login=success&token={token}")
+)
+
 
 # 3️⃣ Check login status via JWT
 @google_bp.route("/me")
