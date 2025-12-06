@@ -9,6 +9,7 @@ import MicButton from "./components/MicButton";
 import ChatBubble from "./components/ChatBubble";
 import ApprovalModal from "./components/ApprovalModal";
 import EmailForm from "./components/EmailForm";
+import TasksManager from "./components/TasksManager";
 
 function App() {
   const [input, setInput] = useState("");
@@ -21,6 +22,7 @@ function App() {
   });
   const [isEmailFormOpen, setIsEmailFormOpen] = useState(false);
   const [emailFormData, setEmailFormData] = useState({});
+  const [isTasksManagerOpen, setIsTasksManagerOpen] = useState(false);
   const [isTTSEnabled, setIsTTSEnabled] = useState(true);
 
   const speakText = (text) => {
@@ -37,7 +39,16 @@ function App() {
   };
 
   const handleMicResult = (text) => {
-    setInput(text);
+    // Append to existing input instead of replacing to allow seamless voice + typing integration
+    setInput(prevInput => {
+      if (prevInput.trim()) {
+        // If there's existing text, append with a space
+        return prevInput + " " + text;
+      } else {
+        // If input is empty, just set the new text
+        return text;
+      }
+    });
   };
   
   const handleExecute = async () => {
@@ -52,7 +63,12 @@ function App() {
 
     try {
       const res = await axios.post("/agent/execute", { action, params });
-      const executionMessage = res.data.message || "Action completed.";
+      let executionMessage = res.data.message || "Action completed.";
+
+      // If calendar event with Meet link, add it prominently
+      if (res.data.details && res.data.details.meet_link) {
+        executionMessage += `\n\nGoogle Meet Link:\n${res.data.details.meet_link}`;
+      }
 
       setChatHistory(prev => prev.map(chat =>
         chat.pending ? { message: executionMessage, sender: "agent", details: res.data.details } : chat
@@ -208,6 +224,20 @@ function App() {
             />
             <span style={{ fontSize: "0.9rem", fontWeight: "500" }}>🔊 Voice Response</span>
           </label>
+          <button onClick={() => setIsTasksManagerOpen(true)} style={{
+            padding: "0.6rem 1.2rem",
+            backgroundColor: "#f57c00",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            fontWeight: "500",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            boxShadow: "0 2px 4px rgba(245, 124, 0, 0.3)"
+          }}>
+            ✓ Tasks
+          </button>
           <Link to="/history" style={{
             padding: "0.6rem 1.2rem",
             backgroundColor: "#1976d2",
@@ -369,6 +399,11 @@ function App() {
         initialData={emailFormData}
         onSend={handleEmailSend}
         onCancel={handleEmailCancel}
+      />
+
+      <TasksManager
+        isOpen={isTasksManagerOpen}
+        onClose={() => setIsTasksManagerOpen(false)}
       />
     </div>
   );
