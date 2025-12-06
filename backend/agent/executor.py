@@ -142,7 +142,7 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
     Parses the Cohere plan output and extracts a high-level action
     and parameters for execution. Supports all Google Workspace services.
     """
-    user_email = session.get("user", {}).get("email", "unknown_user")
+    #user_email = session.get("user", {}).get("email", "unknown_user")
 
     if not user_email or user_email == "unknown_user":
         return {"response_type": "ERROR", "response": "User not logged in. Cannot execute action."}
