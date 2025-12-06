@@ -6,30 +6,44 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // 1️⃣ Check URL for token
-    const params = new URLSearchParams(window.location.search);
-    const tokenFromURL = params.get("token");
-    if (tokenFromURL) {
-      localStorage.setItem("session_token", tokenFromURL);
-      // Optionally remove token from URL to clean it
-      params.delete("token");
-      const newUrl =
-        window.location.pathname +
-        (params.toString() ? "?" + params.toString() : "");
-      window.history.replaceState({}, document.title, newUrl);
-    }
+    const initUser = async () => {
+      try {
+        // 1️⃣ Check URL for token
+        const params = new URLSearchParams(window.location.search);
+        const tokenFromURL = params.get("token");
+        if (tokenFromURL) {
+          localStorage.setItem("session_token", tokenFromURL);
+          params.delete("token");
+          const newUrl =
+            window.location.pathname +
+            (params.toString() ? "?" + params.toString() : "");
+          window.history.replaceState({}, document.title, newUrl);
+        }
 
-    // 2️⃣ Fetch user info
-    axios
-      .get("/auth/me")
-      .then((res) => setUser(res.data))
-      .catch(() => setUser(null));
+        // 2️⃣ Fetch user info using JWT (Axios interceptor handles Authorization)
+        const storedToken = localStorage.getItem("session_token");
+        if (storedToken) {
+          const res = await axios.get("/auth/me");
+          setUser(res.data);
+
+          // ✅ Optional: prefetch logs so history is ready
+          await axios.get("/logs").catch(() => {}); 
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user info", err);
+        setUser(null);
+      }
+    };
+
+    initUser();
   }, []);
 
   const handleLogout = async () => {
     try {
       await axios.get("/auth/logout");
-      localStorage.removeItem("session_token"); // clear token
+      localStorage.removeItem("session_token");
       setUser(null);
       window.location.href = "/";
     } catch (err) {
@@ -127,3 +141,4 @@ export default function Dashboard() {
     </div>
   );
 }
+
