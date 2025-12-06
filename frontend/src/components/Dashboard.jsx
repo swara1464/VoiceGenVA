@@ -13,27 +13,22 @@ export default function Dashboard() {
       localStorage.setItem("session_token", tokenFromURL);
       // Optionally remove token from URL to clean it
       params.delete("token");
-      const newUrl = window.location.pathname + "?" + params.toString();
+      const newUrl =
+        window.location.pathname +
+        (params.toString() ? "?" + params.toString() : "");
       window.history.replaceState({}, document.title, newUrl);
     }
 
-    // 2️⃣ Fetch user info using token
-    const storedToken = localStorage.getItem("session_token");
-    if (storedToken) {
-      axios
-        .get("/auth/me", {
-          headers: { Authorization: `Bearer ${storedToken}` },
-        })
-        .then((res) => setUser(res.data))
-        .catch(() => setUser(null));
-    } else {
-      setUser(null);
-    }
+    // 2️⃣ Fetch user info
+    axios
+      .get("/auth/me")
+      .then((res) => setUser(res.data))
+      .catch(() => setUser(null));
   }, []);
 
   const handleLogout = async () => {
     try {
-      await axios.get("/auth/logout", { withCredentials: true });
+      await axios.get("/auth/logout");
       localStorage.removeItem("session_token"); // clear token
       setUser(null);
       window.location.href = "/";
