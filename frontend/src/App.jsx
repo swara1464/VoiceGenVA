@@ -8,6 +8,7 @@ import History from "./components/History";
 import MicButton from "./components/MicButton";
 import ChatBubble from "./components/ChatBubble";
 import ApprovalModal from "./components/ApprovalModal";
+import EmailForm from "./components/EmailForm";
 
 function App() {
   const [input, setInput] = useState("");
@@ -18,6 +19,8 @@ function App() {
     action: "",
     params: {}
   });
+  const [isEmailFormOpen, setIsEmailFormOpen] = useState(false);
+  const [emailFormData, setEmailFormData] = useState({});
   const [isTTSEnabled, setIsTTSEnabled] = useState(true);
 
   const speakText = (text) => {
@@ -77,6 +80,46 @@ function App() {
     speakText(rejectMessage);
   };
 
+  const handleEmailSend = async (formData) => {
+    setIsEmailFormOpen(false);
+
+    const sendingMessage = "Sending email...";
+    setChatHistory(prev => [
+      ...prev,
+      { message: sendingMessage, sender: "agent", pending: true }
+    ]);
+
+    try {
+      const res = await axios.post("/agent/execute", {
+        action: "GMAIL_SEND",
+        params: formData
+      });
+
+      const resultMessage = res.data.message || "Email sent successfully.";
+      setChatHistory(prev => prev.map(chat =>
+        chat.pending ? { message: resultMessage, sender: "agent" } : chat
+      ));
+      speakText(resultMessage);
+
+    } catch (err) {
+      const errorMessage = "Failed to send email";
+      setChatHistory(prev => prev.map(chat =>
+        chat.pending ? { message: errorMessage, sender: "agent" } : chat
+      ));
+      speakText(errorMessage);
+      console.error("Email send failed:", err);
+    }
+  };
+
+  const handleEmailCancel = () => {
+    setIsEmailFormOpen(false);
+    const cancelMessage = "Email cancelled.";
+    setChatHistory(prev => [
+      ...prev,
+      { message: cancelMessage, sender: "agent" }
+    ]);
+    speakText(cancelMessage);
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -89,7 +132,11 @@ function App() {
       const res = await axios.post("/planner/run", { prompt: userMessage });
       const data = res.data;
 
-      if (data.response_type === "APPROVAL") {
+      if (data.response_type === "EMAIL_FORM") {
+        setEmailFormData(data.params);
+        setIsEmailFormOpen(true);
+        speakText(data.message);
+      } else if (data.response_type === "APPROVAL") {
         setApprovalProps({
           message: data.message,
           action: data.action,
@@ -315,6 +362,13 @@ function App() {
         message={approvalProps.message}
         onApprove={handleExecute}
         onReject={handleReject}
+      />
+
+      <EmailForm
+        isOpen={isEmailFormOpen}
+        initialData={emailFormData}
+        onSend={handleEmailSend}
+        onCancel={handleEmailCancel}
       />
     </div>
   );

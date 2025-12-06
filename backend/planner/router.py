@@ -103,21 +103,21 @@ def run_planner(user_input: str) -> str:
     """
     if not COHERE_API_KEY:
         return "Error: COHERE_API_KEY is not set in the environment. Please set it to proceed."
-    
+
     # FIX: Combine the planner system prompt and user input into the 'message' argument.
     full_planner_prompt = f"{PLANNER_SYSTEM_PROMPT}\n\nUser Request: {user_input}"
 
     try:
         co = cohere.Client(COHERE_API_KEY)
-        
+
         # We use the dedicated planning system prompt here (UNSUPPORTED 'system_prompt' removed)
         response = co.chat(
-            model='command-a-03-2025', 
+            model='command-a-03-2025',
             message=full_planner_prompt, # Now contains the planning instruction
             max_tokens=1024,
             temperature=0.3,
         )
-        
+
         if response.text:
             plan = response.text.strip()
             return f"[Agent Plan via Cohere LLM]:\n{plan}"
@@ -127,3 +127,53 @@ def run_planner(user_input: str) -> str:
     except Exception as e:
         print(f"Error calling Cohere Planner API: {e}")
         return f"Error calling Cohere Planner API: {str(e)}"
+
+
+def generate_email_body(user_instruction: str, recipient: str = "", subject: str = "") -> str:
+    """
+    Generates a professional email body based on user instruction using LLM.
+
+    :param user_instruction: User's natural language instruction (e.g., "tell them I'll join from Monday")
+    :param recipient: Email recipient (optional, for context)
+    :param subject: Email subject (optional, for context)
+    :return: Generated email body text
+    """
+    if not COHERE_API_KEY:
+        return "Unable to generate email body. Please write manually."
+
+    email_prompt = (
+        "You are an expert email writer. Generate a professional, well-formatted email body based on the user's instruction.\n\n"
+        "GUIDELINES:\n"
+        "- Write in a professional and courteous tone\n"
+        "- Include appropriate greeting and closing\n"
+        "- Keep it concise but complete\n"
+        "- Format with proper paragraphs\n"
+        "- Do NOT include subject line or recipient in the body\n"
+        "- Only output the email body content\n\n"
+    )
+
+    if recipient:
+        email_prompt += f"Recipient: {recipient}\n"
+    if subject:
+        email_prompt += f"Subject: {subject}\n"
+
+    email_prompt += f"\nUser Instruction: {user_instruction}\n\nGenerate the email body:"
+
+    try:
+        co = cohere.Client(COHERE_API_KEY)
+
+        response = co.chat(
+            model='command-a-03-2025',
+            message=email_prompt,
+            max_tokens=512,
+            temperature=0.7,
+        )
+
+        if response.text:
+            return response.text.strip()
+        else:
+            return "Unable to generate email body. Please write manually."
+
+    except Exception as e:
+        print(f"Error generating email body: {e}")
+        return f"Unable to generate email body. Please write manually."

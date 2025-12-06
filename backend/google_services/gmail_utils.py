@@ -39,29 +39,57 @@ def get_google_service(api_name: str, api_version: str, user_email=None):
         return None, f"Error building {api_name} service: {e}"
 
 
-def create_message(to, subject, body):
+def create_message(to, subject, body, cc=None, bcc=None):
+    """
+    Creates an email message with optional CC and BCC.
+
+    :param to: Primary recipient email(s) - comma separated string
+    :param subject: Email subject
+    :param body: Email body content
+    :param cc: CC recipient email(s) - comma separated string (optional)
+    :param bcc: BCC recipient email(s) - comma separated string (optional)
+    """
     message = MIMEText(body)
     message["to"] = to
     message["subject"] = subject
+
+    if cc:
+        message["cc"] = cc
+    if bcc:
+        message["bcc"] = bcc
+
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
     return {"raw": raw_message}
 
 
-def send_draft_email(to: str, subject: str, body: str, user_email=None):
+def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str = None, user_email=None):
     """
-    Creates and sends an email using Gmail API. Falls back to DB token if session missing.
+    Creates and sends an email using Gmail API with optional CC and BCC.
+
+    :param to: Primary recipient(s) - comma separated
+    :param subject: Email subject
+    :param body: Email body content
+    :param cc: CC recipient(s) - comma separated (optional)
+    :param bcc: BCC recipient(s) - comma separated (optional)
+    :param user_email: Email of the user (for token retrieval)
     """
-    # 🔥 CRITICAL FIX: Pass user_email to get_google_service
-    service, error = get_google_service("gmail", "v1", user_email) # MODIFIED
+    service, error = get_google_service("gmail", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
     try:
-        message = create_message(to, subject, body)
+        message = create_message(to, subject, body, cc, bcc)
         send_response = service.users().messages().send(userId="me", body=message).execute()
+
+        recipients = to
+        if cc:
+            recipients += f" (CC: {cc})"
+        if bcc:
+            recipients += f" (BCC: {bcc})"
+
         return {
             "success": True,
-            "message": f"Email successfully sent to {to}. Message ID: {send_response['id']}",
+            "message": f"Email successfully sent to {recipients}. Message ID: {send_response['id']}",
             "details": send_response
         }
     except Exception as e:

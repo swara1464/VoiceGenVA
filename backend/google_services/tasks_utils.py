@@ -183,3 +183,60 @@ def delete_task(task_id: str, tasklist_id: str = "@default", user_email: str = N
 
     except Exception as e:
         return {"success": False, "message": f"Failed to delete task: {e}"}
+
+
+def update_task(task_id: str, title: str = None, notes: str = None, due_date: str = None,
+                status: str = None, tasklist_id: str = "@default", user_email: str = None):
+    """
+    Updates an existing task with new information.
+
+    :param task_id: ID of the task to update.
+    :param title: New task title (optional).
+    :param notes: New task notes (optional).
+    :param due_date: New due date in RFC 3339 format (optional).
+    :param status: New status ('needsAction' or 'completed') (optional).
+    :param tasklist_id: ID of the task list (defaults to '@default').
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("tasks", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        # Get the current task
+        task = service.tasks().get(
+            tasklist=tasklist_id,
+            task=task_id
+        ).execute()
+
+        # Update only the provided fields
+        if title is not None:
+            task['title'] = title
+        if notes is not None:
+            task['notes'] = notes
+        if due_date is not None:
+            task['due'] = due_date
+        if status is not None:
+            task['status'] = status
+
+        # Update the task
+        result = service.tasks().update(
+            tasklist=tasklist_id,
+            task=task_id,
+            body=task
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"Task '{result.get('title')}' updated successfully.",
+            "details": {
+                "task_id": result.get('id'),
+                "title": result.get('title'),
+                "status": result.get('status'),
+                "notes": result.get('notes', ''),
+                "due": result.get('due', 'No due date')
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to update task: {e}"}

@@ -3,13 +3,14 @@ import re
 from flask import session
 from google_services.gmail_utils import send_draft_email
 from google_services.calendar_utils import create_calendar_event
-from google_services.drive_utils import search_drive_files
+from google_services.drive_utils import search_drive_files, list_recent_files, get_shareable_link, list_files_in_folder
 from google_services.docs_utils import create_document, append_to_document, search_documents
 from google_services.sheets_utils import create_spreadsheet, add_row_to_sheet, read_sheet_data, update_sheet_cell
-from google_services.tasks_utils import create_task, list_tasks, complete_task, delete_task, list_task_lists
+from google_services.tasks_utils import create_task, list_tasks, complete_task, delete_task, list_task_lists, update_task
 from google_services.keep_utils import create_note, list_notes, delete_note
 from google_services.contacts_utils import list_contacts, search_contacts, get_contact_email
-from logs.log_utils import log_execution 
+from logs.log_utils import log_execution
+from planner.router import generate_email_body 
 
 # --- Tool Call Dispatcher (Simplified) ---
 
@@ -21,8 +22,14 @@ def execute_action(action: str, params: dict, user_email: str):
     log_execution(user_email, action, "ATTEMPTING", {"params": params})
 
     if action == "GMAIL_SEND":
-        # 🔥 CRITICAL FIX: Pass user_email to the GMAIL function
-        result = send_draft_email(params.get('to'), params.get('subject'), params.get('body'), user_email) # MODIFIED
+        result = send_draft_email(
+            params.get('to'),
+            params.get('subject'),
+            params.get('body'),
+            params.get('cc'),
+            params.get('bcc'),
+            user_email
+        )
         action_name = "Email Sent"
 
     elif action == "CALENDAR_CREATE":
@@ -131,6 +138,34 @@ def execute_action(action: str, params: dict, user_email: str):
     elif action == "CONTACTS_GET_EMAIL":
         result = get_contact_email(params.get('name'), user_email)
         action_name = "Contact Email Retrieved"
+
+    elif action == "DRIVE_RECENT":
+        result = list_recent_files(params.get('limit', 10), user_email)
+        action_name = "Recent Files Listed"
+
+    elif action == "DRIVE_GET_LINK":
+        result = get_shareable_link(params.get('file_id'), user_email)
+        action_name = "Shareable Link Retrieved"
+
+    elif action == "DRIVE_LIST_FOLDER":
+        result = list_files_in_folder(params.get('folder_name'), user_email)
+        action_name = "Folder Files Listed"
+
+    elif action == "TASKS_UPDATE":
+        result = update_task(
+            params.get('task_id'),
+            params.get('title'),
+            params.get('notes'),
+            params.get('due_date'),
+            params.get('status'),
+            params.get('tasklist_id', '@default'),
+            user_email
+        )
+        action_name = "Task Updated"
+
+    elif action == "TASKS_LIST_ALL":
+        result = list_task_lists(user_email)
+        action_name = "Task Lists Retrieved"
 
     else:
         result = {"success": False, "message": f"Unknown action: {action}"}
@@ -290,21 +325,51 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
     # DRIVE/SEARCH Intent
     elif "DRIVE" in normalized_plan or ("SEARCH" in normalized_plan and "FILE" in normalized_plan):
 
-        query_match = re.search(r"SEARCH (.+?)(?:IN|FOR|$)", normalized_plan)
-        query = query_match.group(1).strip() if query_match else user_input.split()[-1]
-
-        result = execute_action("DRIVE_SEARCH", {"query": query}, user_email)
-
-        if result['success'] and 'details' in result:
-            drive_response = f"{result['message']}\n"
-            if isinstance(result['details'], list):
+        # Check for recent files request
+        if "RECENT" in normalized_plan or "RECENT FILES" in user_input.upper():
+            result = execute_action("DRIVE_RECENT", {"limit": 10}, user_email)
+            if result['success'] and 'details' in result:
+                drive_response = f"{result['message']}\n"
                 for file in result['details']:
                     name = file.get('name', 'Unnamed')
                     link = file.get('link', '')
                     drive_response += f"\n- {name} ({link})"
-            return {"response_type": "RESULT", "response": drive_response}
-        else:
+                return {"response_type": "RESULT", "response": drive_response}
             return {"response_type": "RESULT", "response": result.get('message', '')}
+
+        # Check for folder listing request
+        elif "FOLDER" in normalized_plan or "IN MY" in user_input.upper():
+            folder_match = re.search(r"(?:in my|inside|folder)\s+(\w+)", user_input.lower())
+            folder_name = folder_match.group(1) if folder_match else "Documents"
+
+            result = execute_action("DRIVE_LIST_FOLDER", {"folder_name": folder_name}, user_email)
+            if result['success'] and 'details' in result:
+                folder_data = result['details']
+                drive_response = f"{result['message']}\n"
+                for file in folder_data.get('files', [])[:10]:
+                    name = file.get('name', 'Unnamed')
+                    link = file.get('link', '')
+                    drive_response += f"\n- {name} ({link})"
+                return {"response_type": "RESULT", "response": drive_response}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
+
+        # Default: search Drive
+        else:
+            query_match = re.search(r"SEARCH (.+?)(?:IN|FOR|$)", normalized_plan)
+            query = query_match.group(1).strip() if query_match else user_input.split()[-1]
+
+            result = execute_action("DRIVE_SEARCH", {"query": query}, user_email)
+
+            if result['success'] and 'details' in result:
+                drive_response = f"{result['message']}\n"
+                if isinstance(result['details'], list):
+                    for file in result['details']:
+                        name = file.get('name', 'Unnamed')
+                        link = file.get('link', '')
+                        drive_response += f"\n- {name} ({link})"
+                return {"response_type": "RESULT", "response": drive_response}
+            else:
+                return {"response_type": "RESULT", "response": result.get('message', '')}
 
     # CALENDAR/EVENT Intent
     elif "CALENDAR" in normalized_plan or "EVENT" in normalized_plan or "SCHEDULE" in normalized_plan or "MEETING" in normalized_plan:
@@ -328,34 +393,34 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
 
     # GMAIL/EMAIL Intent
     elif "GMAIL" in normalized_plan or "EMAIL" in normalized_plan or "SEND" in normalized_plan:
-        # Safer behavior (Option B): always send FROM logged-in user and DO NOT allow
-        # arbitrary recipient injection. The email will be addressed to the logged-in
-        # user's email. If the planner parsed another email address, we ignore it
-        # and append a note for auditability.
+        # Extract recipient email from user input or plan
+        to_email = ""
+        parsed_match = re.search(r"(\S+@\S+)", user_input)
+        if parsed_match:
+            to_email = parsed_match.group(1)
 
-        # Default recipient is the logged-in user (force-safe)
-        to_email = user_email
+        # Generate subject from user input
+        subject_keywords = ["complaint", "report", "update", "inquiry", "question", "feedback"]
+        subject = "Message from Vocal Agent"
+        for keyword in subject_keywords:
+            if keyword in user_input.lower():
+                subject = f"{keyword.capitalize()} from Vocal Agent"
+                break
 
-        # Detect if planner tried to include another recipient (for audit/log)
-        parsed_match = re.search(r"(\S+@\S+)", normalized_plan)
-        parsed_address = parsed_match.group(1) if parsed_match else None
-
-        subject = f"Message from Vocal Agent: {user_input[:40]}..."
-        body = f"Message: {user_input}"
-
-        # If another address was detected, append an audit note and log it
-        if parsed_address and parsed_address.lower() != user_email.lower():
-            audit_note = f"\n\n[NOTE] Planner attempted to send to {parsed_address}, but for safety the message is sent only to the logged-in user's email ({user_email})."
-            body = body + audit_note
-
-        action = "GMAIL_SEND"
-        params = {"to": to_email, "subject": subject, "body": body}
+        # Generate professional email body using LLM
+        body = generate_email_body(user_input, to_email, subject)
 
         return {
-            "response_type": "APPROVAL",
-            "action": action,
-            "message": f"Ready to send email to {to_email}. Approve?",
-            "params": params
+            "response_type": "EMAIL_FORM",
+            "action": "GMAIL_SEND",
+            "message": "Please review and edit the email before sending.",
+            "params": {
+                "to": to_email,
+                "cc": "",
+                "bcc": "",
+                "subject": subject,
+                "body": body
+            }
         }
 
     # Fallback
