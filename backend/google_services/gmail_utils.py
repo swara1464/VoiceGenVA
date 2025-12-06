@@ -5,17 +5,14 @@ from email.mime.text import MIMEText
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import session
-import sqlite3
-import json # ADDED
-from models.session_store import store_token, init_db, get_token # MODIFIED: imported get_token
+import json
+from models.session_store import store_token, init_db, get_token
 
-init_db()  # ensure DB exists
+init_db()  # ensure token DB exists
 
 def get_token_from_db(user_email):
     """
-    Retrieves the token JSON string from the SQLite database using the imported get_token function.
-    (This function name is still used in this file's get_google_service for backward compatibility
-    with the original logic).
+    Retrieves the token JSON string from the Supabase database using the imported get_token function.
     """
     token_json_str = get_token(user_email)
     if token_json_str:

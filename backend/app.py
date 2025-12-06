@@ -14,9 +14,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from planner.router import call_llm, run_planner
 from agent.executor import parse_and_execute_plan, execute_action
 from logs.log_utils import init_log_db, get_logs
+from models.session_store import init_db as init_token_db
 
 load_dotenv()
 init_log_db()  # Initialize log DB
+init_token_db()  # Initialize OAuth token storage
 
 app = Flask(__name__)
 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"

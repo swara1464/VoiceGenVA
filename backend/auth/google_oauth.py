@@ -94,8 +94,7 @@ def callback():
         "picture": userinfo.get("picture"),
     }
     
-    # 🔥 CRITICAL FIX: Persist the token to the SQLite database
-    # The session_store.py/SQLite implementation is now called here.
+    # Persist the token to Supabase for production reliability
     store_token(email, json.dumps(token_data))
 
     # ✅ Generate JWT token
@@ -142,6 +141,30 @@ def me():
 # 4️⃣ Logout
 @google_bp.route("/logout")
 def logout():
+    # Delete token from Supabase if user is identified
+    from models.session_store import delete_token
+
+    # Try to get user email from session or JWT
+    user_email = None
+    if "user" in session:
+        user_email = session["user"].get("email")
+
+    if not user_email:
+        # Try JWT from Authorization header
+        from flask import request
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            try:
+                token = auth_header.split(" ")[1]
+                payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+                user_email = payload.get("email")
+            except:
+                pass
+
+    # Delete stored token if we have the email
+    if user_email:
+        delete_token(user_email)
+
     session.clear()
     response = jsonify({"success": True})
     response.set_cookie("session_token", "", expires=0)  # clear cookie
