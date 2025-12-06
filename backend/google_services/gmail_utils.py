@@ -67,3 +67,4 @@ def send_draft_email(to: str, subject: str, body: str, user_email=None):
         }
     except Exception as e:
         return {"success": False, "message": f"Failed to send email: {e}"}
+
