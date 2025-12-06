@@ -41,6 +41,7 @@ def login():
     )
     return redirect(authorization_url)
 
+
 # 2️⃣ Callback route
 @google_bp.route("/callback", strict_slashes=False)
 def callback():
@@ -55,26 +56,31 @@ def callback():
         code=code
     )
 
-    body = body + f"&client_secret={CLIENT_SECRET}"
+    body += f"&client_secret={CLIENT_SECRET}"
 
     token_response = requests.post(token_url, headers=headers, data=body)
     client.parse_request_body_response(token_response.text)
 
-    # Save token
+    # Save token safely
     token_data = token_response.json()
-    token_data["client_id"] = os.getenv("GOOGLE_CLIENT_ID")
-    token_data["client_secret"] = os.getenv("GOOGLE_CLIENT_SECRET")
-    token_data["token_uri"] = "https://oauth2.googleapis.com/token"
-    token_data["scopes"] = request.args.get("scope").split(" ") if request.args.get("scope") else []
+    token_data.update({
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "client_secret": CLIENT_SECRET,
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "scopes": request.args.get("scope").split(" ") if request.args.get("scope") else []
+    })
 
     session["google_token"] = token_data
 
     # Get Google user info
-    userinfo = requests.get(
+    userinfo_response = requests.get(
         "https://www.googleapis.com/oauth2/v2/userinfo",
         headers={"Authorization": f"Bearer {session['google_token']['access_token']}"}
-    ).json()
+    )
+    if userinfo_response.status_code != 200:
+        return "Failed to fetch user info", 500
 
+    userinfo = userinfo_response.json()
     email = userinfo.get("email")
     if email not in ALLOWED_TESTERS:
         return "Unauthorized email", 403
@@ -94,10 +100,13 @@ def callback():
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
-    # Redirect to frontend with token
-    return make_response(
-    redirect(f"https://voicegenva.onrender.com/dashboard?login=success&token={token}")
-)
+    # Return redirect with make_response to ensure session persistence
+    response = make_response(
+        redirect(f"https://voicegenva.onrender.com/dashboard?login=success&token={token}")
+    )
+    # Optional: set HttpOnly cookie for JWT if frontend needs it
+    response.set_cookie("session_token", token, httponly=True, max_age=7200)
+    return response
 
 
 # 3️⃣ Check login status via JWT
@@ -105,10 +114,17 @@ def callback():
 def me():
     auth_header = request.headers.get("Authorization")
     if not auth_header:
-        return {"error": "Not logged in"}, 401
+        # fallback to cookie if Authorization header missing
+        token = request.cookies.get("session_token")
+        if not token:
+            return {"error": "Not logged in"}, 401
+    else:
+        try:
+            token = auth_header.split(" ")[1]
+        except IndexError:
+            return {"error": "Invalid Authorization header"}, 401
 
     try:
-        token = auth_header.split(" ")[1]
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         return {"email": payload["email"], "name": payload["name"]}
     except jwt.ExpiredSignatureError:
@@ -116,8 +132,11 @@ def me():
     except jwt.InvalidTokenError:
         return {"error": "Invalid token"}, 401
 
+
 # 4️⃣ Logout
 @google_bp.route("/logout")
 def logout():
     session.clear()
-    return jsonify({"success": True}), 200
+    response = jsonify({"success": True})
+    response.set_cookie("session_token", "", expires=0)  # clear cookie
+    return response, 200
