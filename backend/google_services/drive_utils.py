@@ -1,13 +1,14 @@
 # backend/google_services/drive_utils.py
 from .gmail_utils import get_google_service # Reuse the auth function
 
-def search_drive_files(query: str):
+def search_drive_files(query: str, user_email: str = None):
     """
     Searches Google Drive for files matching a query.
-    
+
     :param query: Text string to search for in file names or content.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("drive", "v3")
+    service, error = get_google_service("drive", "v3", user_email)
     if error:
         return {"success": False, "message": error}
         

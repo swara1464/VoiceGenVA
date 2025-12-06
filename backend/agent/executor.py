@@ -26,62 +26,55 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Email Sent"
 
     elif action == "CALENDAR_CREATE":
-        # Note: The underlying calendar_utils.py uses get_google_service which should be modified
-        # to accept user_email, just like gmail_utils.py was. Assuming you've patched all
-        # utility wrappers to accept user_email as the final optional argument.
         result = create_calendar_event(
             params.get('summary'),
             params.get('description', 'Scheduled via Vocal Agent'),
             params.get('start_time'),
             params.get('end_time'),
-            params.get('attendees')
+            params.get('attendees'),
+            user_email
         )
         action_name = "Calendar Event Created"
 
     elif action == "DRIVE_SEARCH":
-        # Assuming search_drive_files and all other utilities also accept user_email now.
-        result = search_drive_files(params.get('query'))
+        result = search_drive_files(params.get('query'), user_email)
         action_name = "Drive Search Performed"
-    # ... (Apply the user_email argument to all other utility calls for robustness)
-    
-    # The rest of the `execute_action` function is left as-is, but the principle should be
-    # to pass `user_email` to all Google service wrapper functions (e.g., `Calendar(..., user_email)`).
 
-    # For now, only modifying GMAIL_SEND to directly fix the visible error.
-    
     elif action == "DOCS_CREATE":
-        result = create_document(params.get('title'), params.get('content', ''))
+        result = create_document(params.get('title'), params.get('content', ''), user_email)
         action_name = "Document Created"
 
     elif action == "DOCS_APPEND":
-        result = append_to_document(params.get('doc_id'), params.get('content'))
+        result = append_to_document(params.get('doc_id'), params.get('content'), user_email)
         action_name = "Content Appended to Document"
 
     elif action == "DOCS_SEARCH":
-        result = search_documents(params.get('query'))
+        result = search_documents(params.get('query'), user_email)
         action_name = "Documents Searched"
 
     elif action == "SHEETS_CREATE":
-        result = create_spreadsheet(params.get('title'))
+        result = create_spreadsheet(params.get('title'), user_email)
         action_name = "Spreadsheet Created"
 
     elif action == "SHEETS_ADD_ROW":
         result = add_row_to_sheet(
             params.get('sheet_id'),
             params.get('range', 'Sheet1!A:Z'),
-            params.get('values', [])
+            params.get('values', []),
+            user_email
         )
         action_name = "Row Added to Sheet"
 
     elif action == "SHEETS_READ":
-        result = read_sheet_data(params.get('sheet_id'), params.get('range'))
+        result = read_sheet_data(params.get('sheet_id'), params.get('range'), user_email)
         action_name = "Sheet Data Read"
 
     elif action == "SHEETS_UPDATE":
         result = update_sheet_cell(
             params.get('sheet_id'),
             params.get('range'),
-            params.get('value')
+            params.get('value'),
+            user_email
         )
         action_name = "Sheet Cell Updated"
 
@@ -90,49 +83,53 @@ def execute_action(action: str, params: dict, user_email: str):
             params.get('title'),
             params.get('notes', ''),
             params.get('due_date'),
-            params.get('tasklist_id', '@default')
+            params.get('tasklist_id', '@default'),
+            user_email
         )
         action_name = "Task Created"
 
     elif action == "TASKS_LIST":
         result = list_tasks(
             params.get('tasklist_id', '@default'),
-            params.get('max_results', 10)
+            params.get('max_results', 10),
+            user_email
         )
         action_name = "Tasks Listed"
 
     elif action == "TASKS_COMPLETE":
         result = complete_task(
             params.get('task_id'),
-            params.get('tasklist_id', '@default')
+            params.get('tasklist_id', '@default'),
+            user_email
         )
         action_name = "Task Completed"
 
     elif action == "TASKS_DELETE":
         result = delete_task(
             params.get('task_id'),
-            params.get('tasklist_id', '@default')
+            params.get('tasklist_id', '@default'),
+            user_email
         )
         action_name = "Task Deleted"
 
     elif action == "KEEP_CREATE":
-        result = create_note(params.get('title'), params.get('content'))
+        result = create_note(params.get('title'), params.get('content'), user_email)
         action_name = "Note Created"
 
     elif action == "KEEP_LIST":
-        result = list_notes(params.get('max_results', 10))
+        result = list_notes(params.get('max_results', 10), user_email)
         action_name = "Notes Listed"
 
     elif action == "CONTACTS_LIST":
-        result = list_contacts(params.get('max_results', 20))
+        result = list_contacts(params.get('max_results', 20), user_email)
         action_name = "Contacts Listed"
 
     elif action == "CONTACTS_SEARCH":
-        result = search_contacts(params.get('query'))
+        result = search_contacts(params.get('query'), user_email)
         action_name = "Contacts Searched"
 
     elif action == "CONTACTS_GET_EMAIL":
-        result = get_contact_email(params.get('name'))
+        result = get_contact_email(params.get('name'), user_email)
         action_name = "Contact Email Retrieved"
 
     else:

@@ -1,14 +1,15 @@
 # backend/google_services/docs_utils.py
 from .gmail_utils import get_google_service
 
-def create_document(title: str, content: str = ""):
+def create_document(title: str, content: str = "", user_email: str = None):
     """
     Creates a new Google Doc with the specified title and optional initial content.
 
     :param title: Document title.
     :param content: Initial document content.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("docs", "v1")
+    service, error = get_google_service("docs", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -46,14 +47,15 @@ def create_document(title: str, content: str = ""):
         return {"success": False, "message": f"Failed to create document: {e}"}
 
 
-def append_to_document(doc_id: str, content: str):
+def append_to_document(doc_id: str, content: str, user_email: str = None):
     """
     Appends content to an existing Google Doc.
 
     :param doc_id: The ID of the document to append to.
     :param content: Text content to append.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("docs", "v1")
+    service, error = get_google_service("docs", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -91,14 +93,15 @@ def append_to_document(doc_id: str, content: str):
         return {"success": False, "message": f"Failed to append to document: {e}"}
 
 
-def search_documents(query: str):
+def search_documents(query: str, user_email: str = None):
     """
     Searches for Google Docs files in Drive that match the query.
     This uses the Drive API to search specifically for Google Docs.
 
     :param query: Search query string.
+    :param user_email: Email of the user (for token retrieval).
     """
-    drive_service, error = get_google_service("drive", "v3")
+    drive_service, error = get_google_service("drive", "v3", user_email)
     if error:
         return {"success": False, "message": error}
 

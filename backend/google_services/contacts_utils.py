@@ -1,13 +1,14 @@
 # backend/google_services/contacts_utils.py
 from .gmail_utils import get_google_service
 
-def list_contacts(max_results: int = 20):
+def list_contacts(max_results: int = 20, user_email: str = None):
     """
     Lists contacts from Google Contacts (People API).
 
     :param max_results: Maximum number of contacts to return.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("people", "v1")
+    service, error = get_google_service("people", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -50,13 +51,14 @@ def list_contacts(max_results: int = 20):
         return {"success": False, "message": f"Failed to list contacts: {e}"}
 
 
-def search_contacts(query: str):
+def search_contacts(query: str, user_email: str = None):
     """
     Searches for contacts matching a query.
 
     :param query: Search query (name or email).
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("people", "v1")
+    service, error = get_google_service("people", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -106,14 +108,15 @@ def search_contacts(query: str):
         return {"success": False, "message": f"Failed to search contacts: {e}"}
 
 
-def get_contact_email(name_query: str):
+def get_contact_email(name_query: str, user_email: str = None):
     """
     Gets the email address for a contact by name.
     Useful for auto-completing email recipients.
 
     :param name_query: Name to search for.
+    :param user_email: Email of the user (for token retrieval).
     """
-    result = search_contacts(name_query)
+    result = search_contacts(name_query, user_email)
 
     if not result['success']:
         return result

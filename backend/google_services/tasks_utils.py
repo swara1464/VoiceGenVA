@@ -1,11 +1,12 @@
 # backend/google_services/tasks_utils.py
 from .gmail_utils import get_google_service
 
-def list_task_lists():
+def list_task_lists(user_email: str = None):
     """
     Lists all task lists for the authenticated user.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("tasks", "v1")
+    service, error = get_google_service("tasks", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -31,7 +32,7 @@ def list_task_lists():
         return {"success": False, "message": f"Failed to list task lists: {e}"}
 
 
-def create_task(title: str, notes: str = "", due_date: str = None, tasklist_id: str = "@default"):
+def create_task(title: str, notes: str = "", due_date: str = None, tasklist_id: str = "@default", user_email: str = None):
     """
     Creates a new task in the specified task list.
 
@@ -39,8 +40,9 @@ def create_task(title: str, notes: str = "", due_date: str = None, tasklist_id: 
     :param notes: Task notes/description.
     :param due_date: Due date in RFC 3339 format (e.g., '2025-12-15T00:00:00Z').
     :param tasklist_id: ID of the task list (defaults to '@default').
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("tasks", "v1")
+    service, error = get_google_service("tasks", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -72,14 +74,15 @@ def create_task(title: str, notes: str = "", due_date: str = None, tasklist_id: 
         return {"success": False, "message": f"Failed to create task: {e}"}
 
 
-def list_tasks(tasklist_id: str = "@default", max_results: int = 10):
+def list_tasks(tasklist_id: str = "@default", max_results: int = 10, user_email: str = None):
     """
     Lists tasks from a specific task list.
 
     :param tasklist_id: ID of the task list (defaults to '@default').
     :param max_results: Maximum number of tasks to return.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("tasks", "v1")
+    service, error = get_google_service("tasks", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -112,14 +115,15 @@ def list_tasks(tasklist_id: str = "@default", max_results: int = 10):
         return {"success": False, "message": f"Failed to list tasks: {e}"}
 
 
-def complete_task(task_id: str, tasklist_id: str = "@default"):
+def complete_task(task_id: str, tasklist_id: str = "@default", user_email: str = None):
     """
     Marks a task as completed.
 
     :param task_id: ID of the task to complete.
     :param tasklist_id: ID of the task list (defaults to '@default').
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("tasks", "v1")
+    service, error = get_google_service("tasks", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -151,14 +155,15 @@ def complete_task(task_id: str, tasklist_id: str = "@default"):
         return {"success": False, "message": f"Failed to complete task: {e}"}
 
 
-def delete_task(task_id: str, tasklist_id: str = "@default"):
+def delete_task(task_id: str, tasklist_id: str = "@default", user_email: str = None):
     """
     Deletes a task.
 
     :param task_id: ID of the task to delete.
     :param tasklist_id: ID of the task list (defaults to '@default').
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("tasks", "v1")
+    service, error = get_google_service("tasks", "v1", user_email)
     if error:
         return {"success": False, "message": error}
 

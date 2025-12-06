@@ -1,13 +1,14 @@
 # backend/google_services/sheets_utils.py
 from .gmail_utils import get_google_service
 
-def create_spreadsheet(title: str):
+def create_spreadsheet(title: str, user_email: str = None):
     """
     Creates a new Google Spreadsheet with the specified title.
 
     :param title: Spreadsheet title.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("sheets", "v4")
+    service, error = get_google_service("sheets", "v4", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -39,15 +40,16 @@ def create_spreadsheet(title: str):
         return {"success": False, "message": f"Failed to create spreadsheet: {e}"}
 
 
-def add_row_to_sheet(sheet_id: str, range_name: str, values: list):
+def add_row_to_sheet(sheet_id: str, range_name: str, values: list, user_email: str = None):
     """
     Appends a row of data to a Google Sheet.
 
     :param sheet_id: The ID of the spreadsheet.
     :param range_name: The A1 notation of the range (e.g., 'Sheet1!A:D').
     :param values: List of values to append (e.g., ['John', 'Doe', 'john@example.com']).
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("sheets", "v4")
+    service, error = get_google_service("sheets", "v4", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -80,14 +82,15 @@ def add_row_to_sheet(sheet_id: str, range_name: str, values: list):
         return {"success": False, "message": f"Failed to add row to sheet: {e}"}
 
 
-def read_sheet_data(sheet_id: str, range_name: str):
+def read_sheet_data(sheet_id: str, range_name: str, user_email: str = None):
     """
     Reads data from a Google Sheet.
 
     :param sheet_id: The ID of the spreadsheet.
     :param range_name: The A1 notation of the range to read (e.g., 'Sheet1!A1:D10').
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("sheets", "v4")
+    service, error = get_google_service("sheets", "v4", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -116,15 +119,16 @@ def read_sheet_data(sheet_id: str, range_name: str):
         return {"success": False, "message": f"Failed to read sheet data: {e}"}
 
 
-def update_sheet_cell(sheet_id: str, range_name: str, value: str):
+def update_sheet_cell(sheet_id: str, range_name: str, value: str, user_email: str = None):
     """
     Updates a specific cell or range in a Google Sheet.
 
     :param sheet_id: The ID of the spreadsheet.
     :param range_name: The A1 notation of the cell/range (e.g., 'Sheet1!A1').
     :param value: The new value for the cell.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("sheets", "v4")
+    service, error = get_google_service("sheets", "v4", user_email)
     if error:
         return {"success": False, "message": error}
 

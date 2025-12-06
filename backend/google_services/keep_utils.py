@@ -7,15 +7,16 @@ Notes are saved as Google Docs in a special "Keep Notes" folder.
 from .gmail_utils import get_google_service
 from .docs_utils import create_document
 
-def create_note(title: str, content: str):
+def create_note(title: str, content: str, user_email: str = None):
     """
     Creates a note by saving it as a Google Doc in a "Keep Notes" folder.
     This is a workaround since Google Keep has no official API.
 
     :param title: Note title.
     :param content: Note content.
+    :param user_email: Email of the user (for token retrieval).
     """
-    drive_service, drive_error = get_google_service("drive", "v3")
+    drive_service, drive_error = get_google_service("drive", "v3", user_email)
     if drive_error:
         return {"success": False, "message": drive_error}
 
@@ -44,7 +45,7 @@ def create_note(title: str, content: str):
             ).execute()
             folder_id = folder.get('id')
 
-        doc_result = create_document(title, content)
+        doc_result = create_document(title, content, user_email)
 
         if not doc_result['success']:
             return doc_result
@@ -71,13 +72,14 @@ def create_note(title: str, content: str):
         return {"success": False, "message": f"Failed to create note: {e}"}
 
 
-def list_notes(max_results: int = 10):
+def list_notes(max_results: int = 10, user_email: str = None):
     """
     Lists notes from the "Keep Notes" folder.
 
     :param max_results: Maximum number of notes to return.
+    :param user_email: Email of the user (for token retrieval).
     """
-    drive_service, error = get_google_service("drive", "v3")
+    drive_service, error = get_google_service("drive", "v3", user_email)
     if error:
         return {"success": False, "message": error}
 
@@ -128,13 +130,14 @@ def list_notes(max_results: int = 10):
         return {"success": False, "message": f"Failed to list notes: {e}"}
 
 
-def delete_note(note_id: str):
+def delete_note(note_id: str, user_email: str = None):
     """
     Deletes a note (moves it to trash).
 
     :param note_id: ID of the note to delete.
+    :param user_email: Email of the user (for token retrieval).
     """
-    drive_service, error = get_google_service("drive", "v3")
+    drive_service, error = get_google_service("drive", "v3", user_email)
     if error:
         return {"success": False, "message": error}
 

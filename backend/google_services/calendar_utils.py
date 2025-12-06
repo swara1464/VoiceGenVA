@@ -1,17 +1,18 @@
 # backend/google_services/calendar_utils.py
 from .gmail_utils import get_google_service # Reuse the auth function
 
-def create_calendar_event(summary: str, description: str, start_time: str, end_time: str, attendees: list = None):
+def create_calendar_event(summary: str, description: str, start_time: str, end_time: str, attendees: list = None, user_email: str = None):
     """
     Creates a new calendar event with Google Meet conferencing.
-    
+
     :param summary: Event title.
     :param description: Event description.
     :param start_time: Start datetime (e.g., '2025-12-03T09:00:00-07:00').
     :param end_time: End datetime.
     :param attendees: List of attendee emails.
+    :param user_email: Email of the user (for token retrieval).
     """
-    service, error = get_google_service("calendar", "v3")
+    service, error = get_google_service("calendar", "v3", user_email)
     if error:
         return {"success": False, "message": error}
 
