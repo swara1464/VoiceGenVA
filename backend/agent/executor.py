@@ -21,6 +21,7 @@ def execute_action(action: str, params: dict, user_email: str):
     log_execution(user_email, action, "ATTEMPTING", {"params": params})
 
     if action == "GMAIL_SEND":
+        # send_draft_email(to, subject, body)
         result = send_draft_email(params.get('to'), params.get('subject'), params.get('body'))
         action_name = "Email Sent"
 
@@ -142,8 +143,7 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
     Parses the Cohere plan output and extracts a high-level action
     and parameters for execution. Supports all Google Workspace services.
     """
-    #user_email = session.get("user", {}).get("email", "unknown_user")
-
+    # Note: user_email is passed from the authenticated context (JWT/session)
     if not user_email or user_email == "unknown_user":
         return {"response_type": "ERROR", "response": "User not logged in. Cannot execute action."}
 
@@ -159,12 +159,14 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
             if result['success'] and 'details' in result:
                 response = f"{result['message']}\n"
                 for task in result['details']:
-                    status_icon = "✅" if task['status'] == 'completed' else "⏳"
-                    response += f"\n{status_icon} {task['title']}"
+                    status_icon = "✅" if task.get('status') == 'completed' else "⏳"
+                    response += f"\n{status_icon} {task.get('title')}"
                 return {"response_type": "RESULT", "response": response}
-            return {"response_type": "RESULT", "response": result['message']}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
         else:
-            task_title = user_input.replace("create task", "").replace("add task", "").strip()
+            # careful extraction for task title
+            task_title = user_input
+            task_title = re.sub(r'(?i)^(create|add)\s+task', '', task_title).strip()
             if not task_title:
                 task_title = f"Task from voice command: {user_input[:50]}"
 
@@ -187,9 +189,11 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
             if result['success'] and 'details' in result:
                 response = f"{result['message']}\n"
                 for note in result['details']:
-                    response += f"\n- {note['title']} ({note['link']})"
+                    title = note.get('title', 'Untitled')
+                    link = note.get('link', '')
+                    response += f"\n- {title} ({link})"
                 return {"response_type": "RESULT", "response": response}
-            return {"response_type": "RESULT", "response": result['message']}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
         else:
             note_title = f"Note: {user_input[:50]}"
             note_content = user_input
@@ -215,9 +219,11 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
             if result['success'] and 'details' in result:
                 response = f"{result['message']}\n"
                 for doc in result['details']:
-                    response += f"\n- {doc['name']} ({doc['link']})"
+                    name = doc.get('name', 'Unnamed')
+                    link = doc.get('link', '')
+                    response += f"\n- {name} ({link})"
                 return {"response_type": "RESULT", "response": response}
-            return {"response_type": "RESULT", "response": result['message']}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
         else:
             doc_title = f"Document: {user_input[:50]}"
             doc_content = user_input
@@ -258,17 +264,21 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
             if result['success'] and 'details' in result:
                 response = f"{result['message']}\n"
                 for contact in result['details']:
-                    response += f"\n- {contact['name']}: {contact['email']}"
+                    name = contact.get('name', 'Unknown')
+                    email = contact.get('email', '')
+                    response += f"\n- {name}: {email}"
                 return {"response_type": "RESULT", "response": response}
-            return {"response_type": "RESULT", "response": result['message']}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
         else:
             result = execute_action("CONTACTS_LIST", {"max_results": 20}, user_email)
             if result['success'] and 'details' in result:
                 response = f"{result['message']}\n"
                 for contact in result['details'][:5]:
-                    response += f"\n- {contact['name']}: {contact['email']}"
+                    name = contact.get('name', 'Unknown')
+                    email = contact.get('email', '')
+                    response += f"\n- {name}: {email}"
                 return {"response_type": "RESULT", "response": response}
-            return {"response_type": "RESULT", "response": result['message']}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
 
     # DRIVE/SEARCH Intent
     elif "DRIVE" in normalized_plan or ("SEARCH" in normalized_plan and "FILE" in normalized_plan):
@@ -282,10 +292,12 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
             drive_response = f"{result['message']}\n"
             if isinstance(result['details'], list):
                 for file in result['details']:
-                    drive_response += f"\n- {file['name']} ({file['link']})"
+                    name = file.get('name', 'Unnamed')
+                    link = file.get('link', '')
+                    drive_response += f"\n- {name} ({link})"
             return {"response_type": "RESULT", "response": drive_response}
         else:
-            return {"response_type": "RESULT", "response": result['message']}
+            return {"response_type": "RESULT", "response": result.get('message', '')}
 
     # CALENDAR/EVENT Intent
     elif "CALENDAR" in normalized_plan or "EVENT" in normalized_plan or "SCHEDULE" in normalized_plan or "MEETING" in normalized_plan:
@@ -294,6 +306,7 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
         params = {
             "summary": f"Vocal Agent: {user_input[:40]}...",
             "description": user_input,
+            # Note: these default times are placeholders; ideally planner supplies times
             "start_time": "2025-12-05T10:00:00-07:00",
             "end_time": "2025-12-05T11:00:00-07:00",
             "attendees": [user_email]
@@ -308,12 +321,25 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
 
     # GMAIL/EMAIL Intent
     elif "GMAIL" in normalized_plan or "EMAIL" in normalized_plan or "SEND" in normalized_plan:
+        # Safer behavior (Option B): always send FROM logged-in user and DO NOT allow
+        # arbitrary recipient injection. The email will be addressed to the logged-in
+        # user's email. If the planner parsed another email address, we ignore it
+        # and append a note for auditability.
 
-        to_match = re.search(r"(\S+@\S+)", normalized_plan)
-        to_email = to_match.group(1) if to_match else user_email
+        # Default recipient is the logged-in user (force-safe)
+        to_email = user_email
+
+        # Detect if planner tried to include another recipient (for audit/log)
+        parsed_match = re.search(r"(\S+@\S+)", normalized_plan)
+        parsed_address = parsed_match.group(1) if parsed_match else None
 
         subject = f"Message from Vocal Agent: {user_input[:40]}..."
         body = f"Message: {user_input}"
+
+        # If another address was detected, append an audit note and log it
+        if parsed_address and parsed_address.lower() != user_email.lower():
+            audit_note = f"\n\n[NOTE] Planner attempted to send to {parsed_address}, but for safety the message is sent only to the logged-in user's email ({user_email})."
+            body = body + audit_note
 
         action = "GMAIL_SEND"
         params = {"to": to_email, "subject": subject, "body": body}
@@ -327,4 +353,5 @@ def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
 
     # Fallback
     else:
+        # If planner output doesn't map to an action, return plan-only
         return {"response_type": "PLAN_ONLY", "response": raw_plan}
