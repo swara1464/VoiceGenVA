@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import jwt
 import datetime
 import json # ADDED
-from backend.models.session_store import store_token # ADDED
+from models.session_store import store_token # ADDED
 
 # Load environment variables
 load_dotenv() 
