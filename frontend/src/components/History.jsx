@@ -9,13 +9,18 @@ export default function History() {
 
   useEffect(() => {
     fetchLogs();
+
+    // 🔥 AUTO REFRESH EVERY 10 SECONDS (stops memory leak with cleanup)
+    const interval = setInterval(fetchLogs, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const response = await axios.get("/logs");
+      const response = await axios.get("/logs");  // axios already sends Bearer token
       setLogs(response.data.logs || []);
+      setError(null);
       setLoading(false);
     } catch (err) {
       setError("Failed to load execution history");
@@ -187,3 +192,4 @@ export default function History() {
     </div>
   );
 }
+
