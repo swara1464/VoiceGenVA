@@ -136,7 +136,8 @@ def execute_action(action: str, params: dict, user_email: str):
     return result
 
 
-def parse_and_execute_plan(raw_plan: str, user_input: str):
+def parse_and_execute_plan(raw_plan: str, user_input: str, user_email: str):
+
     """
     Parses the Cohere plan output and extracts a high-level action
     and parameters for execution. Supports all Google Workspace services.
