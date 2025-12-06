@@ -1,18 +1,19 @@
-# auth/google_oauth.py
-from flask import Blueprint, redirect, session, request
+from flask import Blueprint, redirect, session, request, jsonify
 from oauthlib.oauth2 import WebApplicationClient
 import requests
 import os
-from flask import jsonify
-from dotenv import load_dotenv 
+from dotenv import load_dotenv
+import jwt
+import datetime
 
-# CRITICAL FIX: Load environment variables directly in this module 
-# to ensure GOOGLE_CLIENT_ID/SECRET are available when module-level 
-# variables (CLIENT_SECRET, client) are initialized.
+# Load environment variables
 load_dotenv() 
 
 # ✅ Allowed tester emails
 ALLOWED_TESTERS = ["swarapawanekar@gmail.com", "other.tester@gmail.com"]
+
+# JWT secret
+JWT_SECRET = os.getenv("SESSION_SECRET", "dev_default_key")
 
 google_bp = Blueprint("google_bp", __name__)
 client = WebApplicationClient(os.getenv("GOOGLE_CLIENT_ID"))
@@ -54,7 +55,6 @@ def callback():
         code=code
     )
 
-    # Add client secret manually (required by Google)
     body = body + f"&client_secret={CLIENT_SECRET}"
 
     token_response = requests.post(token_url, headers=headers, data=body)
@@ -62,18 +62,12 @@ def callback():
 
     # Save token
     token_data = token_response.json()
-    
-    # CRITICAL FIX: Add ALL required fields for Credentials.from_authorized_user_info
     token_data["client_id"] = os.getenv("GOOGLE_CLIENT_ID")
     token_data["client_secret"] = os.getenv("GOOGLE_CLIENT_SECRET")
-    
-    # Final Fix: Explicitly add token_uri and scopes for robust Credentials object creation
-    token_data["token_uri"] = "https://oauth2.googleapis.com/token" 
-    # Get the scopes from the callback request URL
-    token_data["scopes"] = request.args.get("scope").split(" ") if request.args.get("scope") else [] 
-    
-    session["google_token"] = token_data
+    token_data["token_uri"] = "https://oauth2.googleapis.com/token"
+    token_data["scopes"] = request.args.get("scope").split(" ") if request.args.get("scope") else []
 
+    session["google_token"] = token_data
 
     # Get Google user info
     userinfo = requests.get(
@@ -92,19 +86,35 @@ def callback():
         "picture": userinfo.get("picture"),
     }
 
-    # Redirect to frontend dashboard
-    return redirect("https://voicegenva.onrender.com/dashboard?login=success")
+    # ✅ Generate JWT token
+    payload = {
+        "email": session["user"]["email"],
+        "name": session["user"]["name"],
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
-# 3️⃣ Check login status
+    # Redirect to frontend with token
+    return redirect(f"https://voicegenva.onrender.com/dashboard?login=success&token={token}")
+
+# 3️⃣ Check login status via JWT
 @google_bp.route("/me")
 def me():
-    if "user" in session:
-        return session["user"]
-    return {"error": "Not logged in"}, 401
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return {"error": "Not logged in"}, 401
+
+    try:
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return {"email": payload["email"], "name": payload["name"]}
+    except jwt.ExpiredSignatureError:
+        return {"error": "Token expired"}, 401
+    except jwt.InvalidTokenError:
+        return {"error": "Invalid token"}, 401
 
 # 4️⃣ Logout
 @google_bp.route("/logout")
 def logout():
     session.clear()
-    # FIX: Return a JSON success response instead of redirecting (302).
     return jsonify({"success": True}), 200
