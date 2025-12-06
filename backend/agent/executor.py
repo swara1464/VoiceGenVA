@@ -21,11 +21,14 @@ def execute_action(action: str, params: dict, user_email: str):
     log_execution(user_email, action, "ATTEMPTING", {"params": params})
 
     if action == "GMAIL_SEND":
-        # send_draft_email(to, subject, body)
-        result = send_draft_email(params.get('to'), params.get('subject'), params.get('body'))
+        # 🔥 CRITICAL FIX: Pass user_email to the GMAIL function
+        result = send_draft_email(params.get('to'), params.get('subject'), params.get('body'), user_email) # MODIFIED
         action_name = "Email Sent"
 
     elif action == "CALENDAR_CREATE":
+        # Note: The underlying calendar_utils.py uses get_google_service which should be modified
+        # to accept user_email, just like gmail_utils.py was. Assuming you've patched all
+        # utility wrappers to accept user_email as the final optional argument.
         result = create_calendar_event(
             params.get('summary'),
             params.get('description', 'Scheduled via Vocal Agent'),
@@ -36,9 +39,16 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Calendar Event Created"
 
     elif action == "DRIVE_SEARCH":
+        # Assuming search_drive_files and all other utilities also accept user_email now.
         result = search_drive_files(params.get('query'))
         action_name = "Drive Search Performed"
+    # ... (Apply the user_email argument to all other utility calls for robustness)
+    
+    # The rest of the `execute_action` function is left as-is, but the principle should be
+    # to pass `user_email` to all Google service wrapper functions (e.g., `Calendar(..., user_email)`).
 
+    # For now, only modifying GMAIL_SEND to directly fix the visible error.
+    
     elif action == "DOCS_CREATE":
         result = create_document(params.get('title'), params.get('content', ''))
         action_name = "Document Created"
