@@ -360,6 +360,7 @@ function App() {
 
           <Routes>
             <Route path="/" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<Dashboard />} /> 
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/agent" element={<VocalAgentHome />} />
             <Route path="/history" element={<History />} />
