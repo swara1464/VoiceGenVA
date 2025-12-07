@@ -199,23 +199,48 @@ def run_planner(user_input: str) -> dict:
         try:
             plan = json.loads(response_text)
 
-            # If missing fields exist, ask user
-            if plan.get("missing_fields") and len(plan["missing_fields"]) > 0:
-                missing = ", ".join(plan["missing_fields"])
+            # 1. GMAIL Critical Field Check (Breaks Looping)
+                if plan.get("action") == "GMAIL_COMPOSE":
+                    missing = []
+                    if not plan.get("to") or not plan["to"]: missing.append("recipient (to)")
+                    if not plan.get("subject"): missing.append("subject")
+                    if not plan.get("body"): missing.append("body/content")
+                    
+                    if missing:
+                        return {
+                            "action": "ASK_USER",
+                            "message": f"I cannot draft the email because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
+                        }
+
+                # 2. CALENDAR Critical Field Check (Breaks Looping)
+                if plan.get("action") == "CALENDAR_CREATE" and not plan.get("instant"):
+                    missing = []
+                    if not plan.get("summary"): missing.append("meeting title")
+                    if not plan.get("start_time"): missing.append("date and time")
+
+                    if missing:
+                        return {
+                            "action": "ASK_USER",
+                            "message": f"I cannot schedule the event because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
+                        }
+
+                # 3. Default check (for original flow or less critical fields)
+                if plan.get("missing_fields") and len(plan["missing_fields"]) > 0:
+                    missing = ", ".join(plan["missing_fields"])
+                    return {
+                        "action": "ASK_USER",
+                        "message": f"I need more information: {missing}. Please provide these details."
+                    }
+
+                return plan
+
+            except json.JSONDecodeError as e:
+                print(f"JSON decode error: {e}")
+                print(f"Response was: {response_text}")
                 return {
-                    "action": "ASK_USER",
-                    "message": f"I need more information: {missing}. Please provide these details."
+                    "action": "ERROR",
+                    "message": "Failed to parse LLM response as JSON"
                 }
-
-            return plan
-
-        except json.JSONDecodeError as e:
-            print(f"JSON decode error: {e}")
-            print(f"Response was: {response_text}")
-            return {
-                "action": "ERROR",
-                "message": "Failed to parse LLM response as JSON"
-            }
 
     except Exception as e:
         print(f"Error calling Cohere: {e}")
@@ -223,7 +248,6 @@ def run_planner(user_input: str) -> dict:
             "action": "ERROR",
             "message": f"Error calling LLM: {str(e)}"
         }
-
 
 def generate_email_body(user_instruction: str, recipient: str = "", subject: str = "") -> str:
     """
