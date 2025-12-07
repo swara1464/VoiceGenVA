@@ -9,100 +9,35 @@ load_dotenv()
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
 # System prompt for structured JSON planning
-PLANNER_SYSTEM_PROMPT = """You are an intelligent AI assistant for Google Workspace automation.
+PLANNER_SYSTEM_PROMPT = """YOU MUST RETURN ONLY VALID JSON. NO TEXT. NO EXPLANATIONS. NO MARKDOWN. ONLY JSON.
 
-Your job is to analyze user requests and return ONLY valid JSON with no markdown, no explanations, no extra text.
+CRITICAL: Your response MUST be parseable by json.loads(). Do not write anything except JSON.
 
-SUPPORTED ACTIONS:
-1. SMALL_TALK - For greetings, questions, casual conversation
-2. GMAIL_COMPOSE - For sending emails
-3. CALENDAR_CREATE - For scheduling meetings/events
-4. CALENDAR_LIST - For listing upcoming events
-5. CONTACTS_SEARCH - For finding contact information
-6. DRIVE_SEARCH - For finding files (already working, minimal changes)
+DETECT USER INTENT:
+- Email keywords: "send email", "email to", "mail to", "compose", "draft" -> GMAIL_COMPOSE
+- Calendar keywords: "schedule", "meeting", "appointment", "calendar", "create event" -> CALENDAR_CREATE
+- Contact keywords: "what is", "email", "phone number", "contact" -> CONTACTS_SEARCH
+- Drive keywords: "search drive", "find file", "look for", "my documents" -> DRIVE_SEARCH
+- Small talk: "hi", "hello", "how are you", "thanks", "goodbye" -> SMALL_TALK
 
-OUTPUT FORMAT - Return ONLY valid JSON:
+JSON OUTPUT FORMATS (COPY EXACTLY):
 
-For SMALL_TALK (greetings, questions, casual chat):
-{
-  "action": "SMALL_TALK",
-  "response": "Your natural response here"
-}
-
-For GMAIL_COMPOSE:
+GMAIL_COMPOSE (for any email request):
 {
   "action": "GMAIL_COMPOSE",
-  "to": ["email1@domain.com", "email2@domain.com"],
-  "cc": ["email@domain.com"],
-  "bcc": [],
-  "subject": "Email subject here",
-  "body": "Professional email body with greeting and signature",
-  "missing_fields": []
-}
-
-For CALENDAR_CREATE:
-{
-  "action": "CALENDAR_CREATE",
-  "summary": "Meeting title",
-  "description": "Meeting description",
-  "start_time": "2025-12-07T14:00:00Z",
-  "end_time": "2025-12-07T15:00:00Z",
-  "attendees": ["email1@domain.com"],
-  "instant": false,
-  "missing_fields": []
-}
-
-For CALENDAR_LIST:
-{
-  "action": "CALENDAR_LIST",
-  "max_results": 10
-}
-
-For CONTACTS_SEARCH:
-{
-  "action": "CONTACTS_SEARCH",
-  "query": "person name or email"
-}
-
-For DRIVE_SEARCH:
-{
-  "action": "DRIVE_SEARCH",
-  "query": "search keywords"
-}
-
-RULES:
-1. If user says hi, hello, how are you, thanks, etc. -> action: SMALL_TALK
-2. Extract ALL information from user input
-3. If CRITICAL info is missing, add field names to "missing_fields" array
-4. For emails: Always populate to, subject, and body. Use context clues.
-5. For calendar: Parse dates naturally (tomorrow, next Monday, etc.)
-6. For instant meetings: set "instant": true
-7. Convert names to email format if no @ symbol (e.g., "Maya" -> "maya@company.com")
-8. NEVER leave to/subject/body empty for emails
-9. NEVER leave summary/start_time empty for calendar
-10. Return ONLY JSON, no markdown, no code blocks
-
-Examples:
-
-Input: "hello"
-Output: {"action": "SMALL_TALK", "response": "Hello! How can I help you today?"}
-
-Input: "send email to jubisingh@gmail.com about leave request, tell them I won't attend college tomorrow"
-Output: {
-  "action": "GMAIL_COMPOSE",
-  "to": ["jubisingh@gmail.com"],
+  "to": ["recipient@email.com"],
   "cc": [],
   "bcc": [],
-  "subject": "Leave Request",
-  "body": "Dear Recipient,\n\nI am writing to inform you that I will not be able to attend college tomorrow due to personal reasons.\n\nThank you for your understanding.\n\nBest regards",
+  "subject": "Email Subject",
+  "body": "Email body with greeting and signature",
   "missing_fields": []
 }
 
-Input: "schedule a meeting tomorrow at 2 PM"
-Output: {
+CALENDAR_CREATE (for scheduling):
+{
   "action": "CALENDAR_CREATE",
-  "summary": "Meeting",
-  "description": "Scheduled via Vocal Agent",
+  "summary": "Meeting Title",
+  "description": "Meeting details",
   "start_time": "2025-12-08T14:00:00Z",
   "end_time": "2025-12-08T15:00:00Z",
   "attendees": [],
@@ -110,25 +45,59 @@ Output: {
   "missing_fields": []
 }
 
-Input: "what is Maya's email?"
-Output: {
+CALENDAR_LIST (for viewing events):
+{
+  "action": "CALENDAR_LIST",
+  "max_results": 10
+}
+
+CONTACTS_SEARCH (for finding contacts):
+{
   "action": "CONTACTS_SEARCH",
-  "query": "Maya"
+  "query": "person name"
 }
 
-Input: "start a meeting now"
-Output: {
-  "action": "CALENDAR_CREATE",
-  "summary": "Instant Meeting",
-  "description": "Instant meeting via Vocal Agent",
-  "start_time": "2025-12-07T10:30:00Z",
-  "end_time": "2025-12-07T11:30:00Z",
-  "attendees": [],
-  "instant": true,
-  "missing_fields": []
+DRIVE_SEARCH (for finding files):
+{
+  "action": "DRIVE_SEARCH",
+  "query": "search keywords"
 }
 
-Remember: Return ONLY valid JSON. No markdown. No explanations."""
+SMALL_TALK (only for greetings/casual chat):
+{
+  "action": "SMALL_TALK",
+  "response": "Your response"
+}
+
+STRICT RULES:
+1. ANY email request MUST use GMAIL_COMPOSE (never SMALL_TALK)
+2. If user mentions a name without email, use "name@placeholder.com" for to field
+3. Always generate complete subject and body for emails
+4. Parse dates like "tomorrow", "next Monday" to ISO format
+5. For "instant meeting" or "meeting now", set instant: true
+6. Return ONLY the JSON object, nothing else
+
+EXAMPLES:
+
+User: "Send email to Jubi saying I can't attend class tomorrow"
+{"action": "GMAIL_COMPOSE", "to": ["jubi@placeholder.com"], "cc": [], "bcc": [], "subject": "Unable to Attend Class Tomorrow", "body": "Hi Jubi,\n\nI wanted to let you know that I won't be able to attend class tomorrow.\n\nThank you for understanding.\n\nBest regards", "missing_fields": []}
+
+User: "Send email to swarapawanekar@gmail.com cc swarasameerpawanekar@gmail.com bcc 1ms22ai063@msrit.edu saying 'This is my resume' subject 'Resume'"
+{"action": "GMAIL_COMPOSE", "to": ["swarapawanekar@gmail.com"], "cc": ["swarasameerpawanekar@gmail.com"], "bcc": ["1ms22ai063@msrit.edu"], "subject": "Resume", "body": "This is my resume", "missing_fields": []}
+
+User: "Schedule a team meeting for tomorrow at 9 AM"
+{"action": "CALENDAR_CREATE", "summary": "Team Meeting", "description": "Scheduled via Vocal Agent", "start_time": "2025-12-08T09:00:00Z", "end_time": "2025-12-08T10:00:00Z", "attendees": [], "instant": false, "missing_fields": []}
+
+User: "What is Swara's email?"
+{"action": "CONTACTS_SEARCH", "query": "Swara"}
+
+User: "Search my drive for Devops Report"
+{"action": "DRIVE_SEARCH", "query": "Devops Report"}
+
+User: "hi"
+{"action": "SMALL_TALK", "response": "Hello! How can I help you today?"}
+
+REMEMBER: ONLY JSON OUTPUT. NO OTHER TEXT."""
 
 
 def call_llm_for_small_talk(user_input: str) -> str:
@@ -168,15 +137,15 @@ def run_planner(user_input: str) -> dict:
             "message": "Cohere API key not configured"
         }
 
-    full_prompt = f"{PLANNER_SYSTEM_PROMPT}\n\nUser Input: {user_input}\n\nJSON Output:"
-
+    # Use system message for better instruction following
     try:
         co = cohere.Client(COHERE_API_KEY)
         response = co.chat(
             model='command-a-03-2025',
-            message=full_prompt,
+            message=f"User request: {user_input}\n\nRespond with ONLY valid JSON:",
+            preamble=PLANNER_SYSTEM_PROMPT,
             max_tokens=800,
-            temperature=0.3,
+            temperature=0.2,
         )
 
         if not response.text:
@@ -238,7 +207,19 @@ def run_planner(user_input: str) -> dict:
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
             print(f"Response was: {response_text}")
-            # Fallback: treat as small talk if JSON parsing fails
+
+            # Check if this is an email request that failed to parse
+            email_keywords = ["email", "send", "mail", "compose", "draft", "message to"]
+            is_email_request = any(keyword in user_input.lower() for keyword in email_keywords)
+
+            if is_email_request:
+                # Don't fallback to small talk for email requests
+                return {
+                    "action": "ERROR",
+                    "message": f"I detected you want to send an email, but I couldn't process it properly. Please try again with format: 'Send email to [email] subject [subject] saying [message]'"
+                }
+
+            # Only use fallback for genuine small talk
             fallback_response = call_llm_for_small_talk(user_input)
             return {
                 "action": "SMALL_TALK",

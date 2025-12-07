@@ -101,8 +101,8 @@ def planner_run():
     if not prompt:
         return jsonify({"response_type": "ERROR", "response": "No prompt provided"}), 400
 
-    # Step 1: Get JSON plan from Cohere LLM
-    plan = run_planner(prompt)
+    # Step 1: Get JSON plan from Cohere LLM (with contact resolution)
+    plan = run_planner(prompt, user["email"])
 
     # Step 2: Process the plan (no parsing, just read JSON)
     execution_result = process_planner_output(plan, user["email"])
