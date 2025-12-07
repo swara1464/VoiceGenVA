@@ -127,7 +127,7 @@ def call_llm_for_small_talk(user_input: str) -> str:
         return "I'm here to help. What would you like to do?"
 
 
-def run_planner(user_input: str) -> dict:
+def run_planner(user_input: str, user_email: str = None) -> dict:
     """
     Sends user input to Cohere and returns structured JSON plan.
     """
