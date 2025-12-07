@@ -10,3 +10,4 @@ cohere
 cohere.core
 gunicorn
 pytz
+PyJWT
