@@ -11,8 +11,8 @@ import datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Core logic imports
-from planner.router import call_llm, run_planner
-from agent.executor import parse_and_execute_plan, execute_action
+from planner.router import run_planner
+from agent.executor import process_planner_output, execute_action
 from logs.log_utils import init_log_db, get_logs
 from models.session_store import init_db as init_token_db
 
@@ -86,7 +86,7 @@ def root():
     return jsonify({"message": "Vocal Agent backend running"})
 
 
-# Planner route
+# Planner route - NEW: Cohere returns JSON plan, executor processes it
 @app.route("/planner/run", methods=["POST", "OPTIONS"])
 def planner_run():
     if request.method == "OPTIONS":
@@ -101,23 +101,13 @@ def planner_run():
     if not prompt:
         return jsonify({"response_type": "ERROR", "response": "No prompt provided"}), 400
 
-    raw_plan = run_planner(prompt)
-    execution_result = parse_and_execute_plan(raw_plan, prompt, user["email"])
+    # Step 1: Get JSON plan from Cohere LLM
+    plan = run_planner(prompt)
+
+    # Step 2: Process the plan (no parsing, just read JSON)
+    execution_result = process_planner_output(plan, user["email"])
 
     return jsonify(execution_result)
-
-
-# Echo route
-@app.route("/echo", methods=["POST", "OPTIONS"])
-def echo():
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-    data = request.json
-    user_message = data.get("message", "")
-    if not user_message:
-        return jsonify({"response": "No message provided"}), 400
-    llm_response = call_llm(user_message)
-    return jsonify({"response": llm_response})
 
 
 # Final execution endpoint

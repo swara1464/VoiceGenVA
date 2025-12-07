@@ -238,3 +238,34 @@ def get_event_meet_link(event_id: str = None, summary_search: str = None, user_e
 
     except Exception as e:
         return {"success": False, "message": f"Failed to retrieve event: {e}"}
+
+
+def delete_calendar_event(event_id: str, user_email: str = None):
+    """
+    Deletes a calendar event by ID.
+
+    :param event_id: ID of the event to delete
+    :param user_email: Email of the user (for token retrieval)
+    """
+    service, error = get_google_service("calendar", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        service.events().delete(calendarId='primary', eventId=event_id).execute()
+
+        if user_email:
+            log_execution(user_email, "CALENDAR_DELETE", "SUCCESS", {
+                "event_id": event_id
+            })
+
+        return {
+            "success": True,
+            "message": f"Event deleted successfully",
+            "details": {
+                "event_id": event_id
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to delete event: {e}"}

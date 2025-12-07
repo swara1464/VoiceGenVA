@@ -157,15 +157,14 @@ function App() {
       const res = await axios.post("/planner/run", { prompt: userMessage });
       const data = res.data;
 
-      if (data.response_type === "EMAIL_FORM") {
+      // Handle EMAIL_PREVIEW (new email preview from Cohere)
+      if (data.response_type === "EMAIL_PREVIEW") {
         setEmailFormData(data.params);
         setIsEmailFormOpen(true);
         speakText(data.message);
-      } else if (data.response_type === "GMAIL_PREVIEW") {
-        setGmailPreview(data);
-        setIsGmailPreviewOpen(true);
-        speakText(data.message || "Email preview ready for review");
-      } else if (data.response_type === "APPROVAL") {
+      }
+      // Handle CALENDAR_PREVIEW (new calendar preview)
+      else if (data.response_type === "CALENDAR_PREVIEW") {
         setApprovalProps({
           message: data.message,
           action: data.action,
@@ -173,8 +172,38 @@ function App() {
         });
         setIsModalOpen(true);
         speakText(data.message);
-      } else {
+      }
+      // Handle APPROVAL (instant meetings, deletes, etc.)
+      else if (data.response_type === "APPROVAL") {
+        setApprovalProps({
+          message: data.message,
+          action: data.action,
+          params: data.params
+        });
+        setIsModalOpen(true);
+        speakText(data.message);
+      }
+      // Handle RESULT (small talk, contacts, drive, calendar list)
+      else if (data.response_type === "RESULT") {
         const agentMessage = data.response;
+        setChatHistory(prev => [
+          ...prev,
+          { message: agentMessage, sender: "agent" }
+        ]);
+        speakText(agentMessage);
+      }
+      // Handle ERROR
+      else if (data.response_type === "ERROR") {
+        const errorMessage = data.response || "An error occurred";
+        setChatHistory(prev => [
+          ...prev,
+          { message: errorMessage, sender: "agent" }
+        ]);
+        speakText(errorMessage);
+      }
+      // Fallback for unknown response types
+      else {
+        const agentMessage = data.response || "I received your message";
         setChatHistory(prev => [
           ...prev,
           { message: agentMessage, sender: "agent" }

@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function EmailForm({ isOpen, initialData, onSend, onCancel }) {
   const [formData, setFormData] = useState({
-    to: initialData?.to || '',
-    cc: initialData?.cc || '',
-    bcc: initialData?.bcc || '',
-    subject: initialData?.subject || '',
-    body: initialData?.body || ''
+    to: [],
+    cc: [],
+    bcc: [],
+    subject: '',
+    body: ''
   });
+
+  // Update formData when initialData changes
+  useEffect(() => {
+    if (initialData && isOpen) {
+      setFormData({
+        to: initialData?.to || [],
+        cc: initialData?.cc || [],
+        bcc: initialData?.bcc || [],
+        subject: initialData?.subject || '',
+        body: initialData?.body || ''
+      });
+    }
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -16,12 +29,41 @@ export default function EmailForm({ isOpen, initialData, onSend, onCancel }) {
   };
 
   const handleSubmit = () => {
-    if (!formData.to || !formData.subject || !formData.body) {
+    // Convert string inputs back to arrays if needed
+    let toArray = formData.to;
+    let ccArray = formData.cc;
+    let bccArray = formData.bcc;
+
+    if (typeof toArray === 'string') {
+      toArray = toArray.split(',').map(e => e.trim()).filter(e => e);
+    }
+    if (typeof ccArray === 'string') {
+      ccArray = ccArray.split(',').map(e => e.trim()).filter(e => e);
+    }
+    if (typeof bccArray === 'string') {
+      bccArray = bccArray.split(',').map(e => e.trim()).filter(e => e);
+    }
+
+    if (!toArray || toArray.length === 0 || !formData.subject || !formData.body) {
       alert('Please fill in To, Subject, and Body fields');
       return;
     }
-    onSend(formData);
+
+    // Send with approved flag
+    onSend({
+      to: toArray,
+      cc: ccArray,
+      bcc: bccArray,
+      subject: formData.subject,
+      body: formData.body,
+      approved: true
+    });
   };
+
+  // Convert arrays to string for display
+  const toDisplay = Array.isArray(formData.to) ? formData.to.join(', ') : formData.to;
+  const ccDisplay = Array.isArray(formData.cc) ? formData.cc.join(', ') : formData.cc;
+  const bccDisplay = Array.isArray(formData.bcc) ? formData.bcc.join(', ') : formData.bcc;
 
   return (
     <div style={{
@@ -66,7 +108,7 @@ export default function EmailForm({ isOpen, initialData, onSend, onCancel }) {
             gap: '0.5rem'
           }}>
             <span style={{ fontSize: '1.8rem' }}>📧</span>
-            Compose Email
+            Review Email
           </h3>
           <button
             onClick={onCancel}
@@ -95,8 +137,8 @@ export default function EmailForm({ isOpen, initialData, onSend, onCancel }) {
               To: <span style={{ color: '#d32f2f' }}>*</span>
             </label>
             <input
-              type="email"
-              value={formData.to}
+              type="text"
+              value={toDisplay}
               onChange={(e) => handleChange('to', e.target.value)}
               placeholder="recipient@example.com"
               style={{
@@ -124,8 +166,8 @@ export default function EmailForm({ isOpen, initialData, onSend, onCancel }) {
               CC:
             </label>
             <input
-              type="email"
-              value={formData.cc}
+              type="text"
+              value={ccDisplay}
               onChange={(e) => handleChange('cc', e.target.value)}
               placeholder="cc@example.com (optional)"
               style={{
@@ -153,8 +195,8 @@ export default function EmailForm({ isOpen, initialData, onSend, onCancel }) {
               BCC:
             </label>
             <input
-              type="email"
-              value={formData.bcc}
+              type="text"
+              value={bccDisplay}
               onChange={(e) => handleChange('bcc', e.target.value)}
               placeholder="bcc@example.com (optional)"
               style={{
