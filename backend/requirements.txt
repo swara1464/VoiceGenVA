@@ -8,6 +8,5 @@ requests
 python-dotenv
 cohere
 cohere.core
-supabase
 gunicorn
 pytz
