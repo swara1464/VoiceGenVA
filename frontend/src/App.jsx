@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import axios from "./axios";
 
@@ -30,6 +30,15 @@ function App() {
   const [gmailPreview, setGmailPreview] = useState(null);
   const [userEmail, setUserEmail] = useState("");
 
+  // --- FIX: keep input focused ---
+  const inputRef = useRef(null);
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      inputRef.current?.focus();
+    }
+  }, [input]);
+  // --- end fix ---
+
   const speakText = (text) => {
     if (!isTTSEnabled || !window.speechSynthesis) return;
 
@@ -43,30 +52,10 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
- /* const handleMicResult = (text) => {
-    // Append to existing input instead of replacing to allow seamless voice + typing integration
-    setInput(prevInput => {
-      if (prevInput.trim()) {
-        // If there's existing text, append with a space
-        return prevInput + " " + text;
-      } else {
-        // If input is empty, just set the new text
-        return text;
-      }
-    });
-  };*/
+  const handleMicResult = (text) => {
+    setInput(text);
+  };
 
-  // frontend/src/App.jsx
-
-// --- REPLACE THE EXISTING handleMicResult FUNCTION WITH THIS ---
-  const handleMicResult = (text) => {
-    // FIX: This now replaces the existing input text with the new voice 
-    // transcription. This allows for seamless editing, where you can speak, 
-    // and then immediately start typing or delete the transcribed text.
-    setInput(text);
-  };
-// --- END REPLACEMENT --
-  
   const handleExecute = async () => {
     const { action, params } = approvalProps;
     setIsModalOpen(false);
@@ -81,7 +70,6 @@ function App() {
       const res = await axios.post("/agent/execute", { action, params });
       let executionMessage = res.data.message || "Action completed.";
 
-      // If calendar event with Meet link, add it prominently
       if (res.data.details && res.data.details.meet_link) {
         executionMessage += `\n\nGoogle Meet Link:\n${res.data.details.meet_link}`;
       }
@@ -168,14 +156,11 @@ function App() {
       const res = await axios.post("/planner/run", { prompt: userMessage });
       const data = res.data;
 
-      // Handle EMAIL_PREVIEW (new email preview from Cohere)
       if (data.response_type === "EMAIL_PREVIEW") {
         setEmailFormData(data.params);
         setIsEmailFormOpen(true);
         speakText(data.message);
-      }
-      // Handle CALENDAR_PREVIEW (new calendar preview)
-      else if (data.response_type === "CALENDAR_PREVIEW") {
+      } else if (data.response_type === "CALENDAR_PREVIEW") {
         setApprovalProps({
           message: data.message,
           action: data.action,
@@ -183,9 +168,7 @@ function App() {
         });
         setIsModalOpen(true);
         speakText(data.message);
-      }
-      // Handle APPROVAL (instant meetings, deletes, etc.)
-      else if (data.response_type === "APPROVAL") {
+      } else if (data.response_type === "APPROVAL") {
         setApprovalProps({
           message: data.message,
           action: data.action,
@@ -193,27 +176,21 @@ function App() {
         });
         setIsModalOpen(true);
         speakText(data.message);
-      }
-      // Handle RESULT (small talk, contacts, drive, calendar list)
-      else if (data.response_type === "RESULT") {
+      } else if (data.response_type === "RESULT") {
         const agentMessage = data.response;
         setChatHistory(prev => [
           ...prev,
           { message: agentMessage, sender: "agent" }
         ]);
         speakText(agentMessage);
-      }
-      // Handle ERROR
-      else if (data.response_type === "ERROR") {
+      } else if (data.response_type === "ERROR") {
         const errorMessage = data.response || "An error occurred";
         setChatHistory(prev => [
           ...prev,
           { message: errorMessage, sender: "agent" }
         ]);
         speakText(errorMessage);
-      }
-      // Fallback for unknown response types
-      else {
+      } else {
         const agentMessage = data.response || "I received your message";
         setChatHistory(prev => [
           ...prev,
@@ -252,7 +229,6 @@ function App() {
     ]);
     speakText(cancelMessage);
   };
-
 
   const VocalAgentHome = () => (
     <div>
@@ -415,6 +391,7 @@ function App() {
       }}>
         <MicButton onResult={handleMicResult} />
         <input
+          ref={inputRef}  // <-- ADDED ref
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -527,20 +504,4 @@ function App() {
               textShadow: "0 1px 2px rgba(0,0,0,0.2)"
             }}>
               AI-Powered Google Workspace Assistant
-            </p>
-          </div>
-
-          <Routes>
-            <Route path="/" element={<LoginPage />} />
-            <Route path="/auth/callback" element={<Dashboard />} /> 
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/agent" element={<VocalAgentHome />} />
-            <Route path="/history" element={<History />} />
-          </Routes>
-        </div>
-      </div>
-    </BrowserRouter>
-  );
-}
-
-export default App;
+            </p
