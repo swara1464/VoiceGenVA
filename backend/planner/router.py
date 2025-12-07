@@ -71,13 +71,13 @@ For DRIVE_SEARCH:
 }
 
 RULES:
-1. If user says hi, hello, how are you, thanks, etc. → action: SMALL_TALK
+1. If user says hi, hello, how are you, thanks, etc. -> action: SMALL_TALK
 2. Extract ALL information from user input
 3. If CRITICAL info is missing, add field names to "missing_fields" array
 4. For emails: Always populate to, subject, and body. Use context clues.
 5. For calendar: Parse dates naturally (tomorrow, next Monday, etc.)
 6. For instant meetings: set "instant": true
-7. Convert names to email format if no @ symbol (e.g., "Maya" → "maya@company.com")
+7. Convert names to email format if no @ symbol (e.g., "Maya" -> "maya@company.com")
 8. NEVER leave to/subject/body empty for emails
 9. NEVER leave summary/start_time empty for calendar
 10. Return ONLY JSON, no markdown, no code blocks
@@ -200,47 +200,48 @@ def run_planner(user_input: str) -> dict:
             plan = json.loads(response_text)
 
             # 1. GMAIL Critical Field Check (Breaks Looping)
-                if plan.get("action") == "GMAIL_COMPOSE":
-                    missing = []
-                    if not plan.get("to") or not plan["to"]: missing.append("recipient (to)")
-                    if not plan.get("subject"): missing.append("subject")
-                    if not plan.get("body"): missing.append("body/content")
-                    
-                    if missing:
-                        return {
-                            "action": "ASK_USER",
-                            "message": f"I cannot draft the email because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
-                        }
-
-                # 2. CALENDAR Critical Field Check (Breaks Looping)
-                if plan.get("action") == "CALENDAR_CREATE" and not plan.get("instant"):
-                    missing = []
-                    if not plan.get("summary"): missing.append("meeting title")
-                    if not plan.get("start_time"): missing.append("date and time")
-
-                    if missing:
-                        return {
-                            "action": "ASK_USER",
-                            "message": f"I cannot schedule the event because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
-                        }
-
-                # 3. Default check (for original flow or less critical fields)
-                if plan.get("missing_fields") and len(plan["missing_fields"]) > 0:
-                    missing = ", ".join(plan["missing_fields"])
+            if plan.get("action") == "GMAIL_COMPOSE":
+                missing = []
+                # Check if 'to' is present and not an empty list
+                if not plan.get("to") or not plan["to"]: missing.append("recipient (to)")
+                if not plan.get("subject"): missing.append("subject")
+                if not plan.get("body"): missing.append("body/content")
+                
+                if missing:
                     return {
                         "action": "ASK_USER",
-                        "message": f"I need more information: {missing}. Please provide these details."
+                        "message": f"I cannot draft the email because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
                     }
 
-                return plan
+            # 2. CALENDAR Critical Field Check (Breaks Looping)
+            if plan.get("action") == "CALENDAR_CREATE" and not plan.get("instant"):
+                missing = []
+                if not plan.get("summary"): missing.append("meeting title")
+                if not plan.get("start_time"): missing.append("date and time")
 
-            except json.JSONDecodeError as e:
-                print(f"JSON decode error: {e}")
-                print(f"Response was: {response_text}")
+                if missing:
+                    return {
+                        "action": "ASK_USER",
+                        "message": f"I cannot schedule the event because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
+                    }
+
+            # 3. Default check (for original flow or less critical fields)
+            if plan.get("missing_fields") and len(plan["missing_fields"]) > 0:
+                missing = ", ".join(plan["missing_fields"])
                 return {
-                    "action": "ERROR",
-                    "message": "Failed to parse LLM response as JSON"
+                    "action": "ASK_USER",
+                    "message": f"I need more information: {missing}. Please provide these details."
                 }
+
+            return plan
+
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            print(f"Response was: {response_text}")
+            return {
+                "action": "ERROR",
+                "message": "Failed to parse LLM response as JSON"
+            }
 
     except Exception as e:
         print(f"Error calling Cohere: {e}")
