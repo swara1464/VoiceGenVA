@@ -5,7 +5,9 @@ from google_services.drive_utils import search_drive_files
 from google_services.contacts_utils import search_contacts
 from logs.log_utils import log_execution
 from planner.router import call_llm_for_small_talk
-
+import dateparser
+from datetime import datetime, timedelta
+import pytz
 
 def execute_action(action: str, params: dict, user_email: str):
     """
@@ -79,6 +81,38 @@ def execute_action(action: str, params: dict, user_email: str):
 
     return result
 
+def parse_date_string_to_iso(date_string: str) -> dict:
+    """Safely parses a natural language date string into ISO 8601 format."""
+    try:
+        # Standardize search to UTC for API
+        base_dt = datetime.now(pytz.UTC)
+        
+        # Parse the start time using dateparser
+        start_dt = dateparser.parse(
+            date_string,
+            settings={
+                'RELATIVE_BASE': base_dt,
+                'TIMEZONE': 'UTC', # Standardize to UTC for API
+                'RETURN_AS_TIMEZONE_AWARE': True
+            }
+        )
+        
+        if not start_dt:
+            raise ValueError("Could not parse the date/time.")
+        
+        # Calculate a default end time (1 hour later)
+        end_dt = start_dt + timedelta(hours=1)
+
+        return {
+            "success": True,
+            "start_time": start_dt.isoformat(),
+            "end_time": end_dt.isoformat()
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to parse date: {e}"}
+
+
+// In backend/agent/executor.py, starting around Line 142
 
 def process_planner_output(plan: dict, user_email: str):
     """
@@ -90,27 +124,15 @@ def process_planner_output(plan: dict, user_email: str):
 
     action = plan.get("action")
 
-    # Handle errors
+    # Handle errors and chat modes first
     if action == "ERROR":
-        return {
-            "response_type": "ERROR",
-            "response": plan.get("message", "An error occurred")
-        }
-
-    # Handle missing information
+        return {"response_type": "ERROR", "response": plan.get("message", "An error occurred")}
     if action == "ASK_USER":
-        return {
-            "response_type": "RESULT",
-            "response": plan.get("message", "I need more information. Please provide additional details.")
-        }
-
-    # Handle small talk
+        return {"response_type": "RESULT", "response": plan.get("message", "I need more information. Please provide additional details.")}
     if action == "SMALL_TALK":
+        # Ensure 'user_input' is passed back for chat context
         response_text = plan.get("response", "I'm here to help!")
-        return {
-            "response_type": "RESULT",
-            "response": response_text
-        }
+        return {"response_type": "RESULT", "response": response_text}
 
     # Handle Gmail - show preview before sending
     if action == "GMAIL_COMPOSE":
@@ -127,41 +149,36 @@ def process_planner_output(plan: dict, user_email: str):
             }
         }
 
-    # Handle Calendar - show preview before creating
+    # Handle Calendar - apply date parsing
     if action == "CALENDAR_CREATE":
-        # Check if instant meeting
-        if plan.get("instant"):
-            return {
-                "response_type": "APPROVAL",
-                "action": "CALENDAR_CREATE",
-                "message": f"Ready to create instant meeting: '{plan.get('summary')}'. This will start now.",
-                "params": {
-                    "summary": plan.get("summary"),
-                    "description": plan.get("description", ""),
-                    "start_time": plan.get("start_time"),
-                    "end_time": plan.get("end_time"),
-                    "attendees": plan.get("attendees", []),
-                    "instant": True
-                }
-            }
-        else:
-            attendees_text = ""
-            if plan.get("attendees") and len(plan.get("attendees")) > 0:
-                attendees_text = f"\nAttendees: {', '.join(plan.get('attendees'))}"
+        start_time_str = plan.get("start_time")
 
-            return {
-                "response_type": "CALENDAR_PREVIEW",
-                "action": "CALENDAR_CREATE",
-                "message": f"Ready to schedule: '{plan.get('summary')}' at {plan.get('start_time')}.{attendees_text}",
-                "params": {
-                    "summary": plan.get("summary"),
-                    "description": plan.get("description", ""),
-                    "start_time": plan.get("start_time"),
-                    "end_time": plan.get("end_time"),
-                    "attendees": plan.get("attendees", []),
-                    "instant": False
-                }
+        # Use robust date parsing if NOT instant
+        if not plan.get("instant"):
+            date_info = parse_date_string_to_iso(start_time_str)
+            if not date_info['success']:
+                return {"response_type": "ERROR", "response": f"Scheduling failed: {date_info['error']}"}
+
+            # Overwrite LLM's potentially invalid date with guaranteed ISO dates
+            plan["start_time"] = date_info['start_time']
+            plan["end_time"] = date_info['end_time']
+
+        # Determine Preview/Approval flow
+        message_prefix = f"Ready to schedule: '{plan.get('summary')}' at {plan.get('start_time')[:16]}."
+        
+        return {
+            "response_type": "APPROVAL",
+            "action": "CALENDAR_CREATE",
+            "message": message_prefix,
+            "params": {
+                "summary": plan.get("summary"),
+                "description": plan.get("description", "Scheduled via Vocal Agent"),
+                "start_time": plan.get("start_time"),
+                "end_time": plan.get("end_time"),
+                "attendees": plan.get("attendees", []),
+                "instant": plan.get("instant", False)
             }
+        }
 
     # Handle Calendar List - execute immediately
     if action == "CALENDAR_LIST":
@@ -173,23 +190,12 @@ def process_planner_output(plan: dict, user_email: str):
                 summary = event.get('summary', 'No Title')
                 start = event.get('start', 'No time')
                 meet_link = event.get('meet_link', 'No Meet link')
-                response += f"{summary}\nTime: {start}\nMeet Link: {meet_link}\n\n"
+                response += f"📅 {summary}\n⏰ {start}\n🔗 {meet_link}\n\n"
             return {"response_type": "RESULT", "response": response}
         else:
             return {"response_type": "RESULT", "response": result.get('message', 'No events found')}
 
-    # Handle Calendar Delete - show confirmation
-    if action == "CALENDAR_DELETE":
-        return {
-            "response_type": "APPROVAL",
-            "action": "CALENDAR_DELETE",
-            "message": f"Ready to delete event with ID: {plan.get('event_id')}. Confirm?",
-            "params": {
-                "event_id": plan.get("event_id")
-            }
-        }
-
-    # Handle Contacts - execute immediately
+    # Handle Contacts Search - execute immediately
     if action == "CONTACTS_SEARCH":
         result = execute_action("CONTACTS_SEARCH", {"query": plan.get("query")}, user_email)
 
@@ -199,12 +205,12 @@ def process_planner_output(plan: dict, user_email: str):
                 name = contact.get('name', 'Unknown')
                 email = contact.get('email', 'No email')
                 phone = contact.get('phone', 'No phone')
-                response += f"{name}\nEmail: {email}\nPhone: {phone}\n\n"
+                response += f"👤 {name}\nEmail: {email}\nPhone: {phone}\n\n"
             return {"response_type": "RESULT", "response": response}
         else:
             return {"response_type": "RESULT", "response": result.get('message', 'No contacts found')}
-
-    # Handle Drive - execute immediately
+    
+    # Handle Drive Search - execute immediately
     if action == "DRIVE_SEARCH":
         result = execute_action("DRIVE_SEARCH", {"query": plan.get("query")}, user_email)
 
@@ -213,7 +219,7 @@ def process_planner_output(plan: dict, user_email: str):
             for file in result['details']:
                 name = file.get('name', 'Unnamed')
                 link = file.get('link', '')
-                response += f"{name}\n{link}\n\n"
+                response += f"📁 {name}\n🔗 {link}\n\n"
             return {"response_type": "RESULT", "response": response}
         else:
             return {"response_type": "RESULT", "response": result.get('message', 'No files found')}
