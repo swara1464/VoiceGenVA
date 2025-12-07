@@ -175,8 +175,10 @@ function App() {
 
       if (data.response_type === "EMAIL_PREVIEW") {
         console.log("✅ EMAIL_PREVIEW detected, opening GmailPreview");
+        console.log("📧 Email preview data:", data.params);
         setGmailPreview(data.params);
         setIsGmailPreviewOpen(true);
+        console.log("🎯 GmailPreview state set - isOpen:", true, "preview:", data.params);
         speakText(data.message);
       } else if (data.response_type === "CALENDAR_PREVIEW") {
         setApprovalProps({

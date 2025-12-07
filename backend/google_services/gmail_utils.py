@@ -43,13 +43,22 @@ def create_message(to, subject, body, cc=None, bcc=None):
     """
     Creates an email message with optional CC and BCC.
 
-    :param to: Primary recipient email(s) - comma separated string
+    :param to: Primary recipient email(s) - comma separated string OR list
     :param subject: Email subject
     :param body: Email body content
-    :param cc: CC recipient email(s) - comma separated string (optional)
-    :param bcc: BCC recipient email(s) - comma separated string (optional)
+    :param cc: CC recipient email(s) - comma separated string OR list (optional)
+    :param bcc: BCC recipient email(s) - comma separated string OR list (optional)
     """
     message = MIMEText(body)
+
+    # Convert lists to comma-separated strings
+    if isinstance(to, list):
+        to = ", ".join(to)
+    if isinstance(cc, list):
+        cc = ", ".join(cc)
+    if isinstance(bcc, list):
+        bcc = ", ".join(bcc)
+
     message["to"] = to
     message["subject"] = subject
 
@@ -66,11 +75,11 @@ def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str 
     """
     Creates and sends an email using Gmail API with optional CC and BCC.
 
-    :param to: Primary recipient(s) - comma separated or list
+    :param to: Primary recipient(s) - comma separated string OR list
     :param subject: Email subject
     :param body: Email body content
-    :param cc: CC recipient(s) - comma separated or list (optional)
-    :param bcc: BCC recipient(s) - comma separated or list (optional)
+    :param cc: CC recipient(s) - comma separated string OR list (optional)
+    :param bcc: BCC recipient(s) - comma separated string OR list (optional)
     :param user_email: Email of the user (for token retrieval)
     :param approved: Must be True for send to proceed (safety check)
     """
@@ -87,9 +96,16 @@ def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str 
         return {"success": False, "message": error}
 
     try:
+        # Convert empty lists to None for cleaner handling
+        if cc == [] or cc == ['']:
+            cc = None
+        if bcc == [] or bcc == ['']:
+            bcc = None
+
         message = create_message(to, subject, body, cc, bcc)
         send_response = service.users().messages().send(userId="me", body=message).execute()
 
+        # Build recipient display string
         to_list = to if isinstance(to, list) else [to]
         recipients = ", ".join(to_list)
         if cc:
@@ -109,10 +125,17 @@ def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str 
 
         return {
             "success": True,
-            "message": f"Email successfully sent to {recipients}. Message ID: {send_response['id']}",
+            "message": f"✅ Email successfully sent to {recipients}!",
             "details": send_response
         }
     except Exception as e:
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_SEND", "FAILED", {
+                "error": str(e),
+                "to": to,
+                "subject": subject
+            })
         return {"success": False, "message": f"Failed to send email: {e}"}
 
 

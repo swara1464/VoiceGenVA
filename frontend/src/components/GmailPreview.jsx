@@ -11,7 +11,14 @@ export default function GmailPreview({ isOpen, preview, onSend, onCancel, userEm
     body: preview?.body || ''
   });
 
-  if (!isOpen || !preview) return null;
+  console.log("🔍 GmailPreview render - isOpen:", isOpen, "preview:", preview);
+
+  if (!isOpen || !preview) {
+    console.log("❌ GmailPreview not showing - isOpen:", isOpen, "preview:", preview);
+    return null;
+  }
+
+  console.log("✅ GmailPreview showing!");
 
   const handleEdit = () => {
     setEditedData({
@@ -37,6 +44,8 @@ export default function GmailPreview({ isOpen, preview, onSend, onCancel, userEm
       body: preview.body
     };
 
+    console.log("📤 Sending email with data:", { ...dataToSend, approved: true });
+
     try {
       const response = await axios.post('/agent/execute', {
         action: 'GMAIL_SEND',
@@ -46,13 +55,18 @@ export default function GmailPreview({ isOpen, preview, onSend, onCancel, userEm
         }
       });
 
+      console.log("📥 Send response:", response.data);
+
       if (response.data.success) {
+        console.log("✅ Email sent successfully!");
         onSend(response.data);
       } else {
+        console.error("❌ Email send failed:", response.data.message);
         alert('Failed to send email: ' + (response.data.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error sending email:', error);
+      console.error('❌ Error sending email:', error);
+      console.error('Error details:', error.response?.data);
       alert('Error sending email: ' + (error.response?.data?.message || error.message));
     }
   };
