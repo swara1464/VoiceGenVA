@@ -31,35 +31,66 @@ def store_token(email: str, token_json: str):
         token_data = json.loads(token_json)
         print(f"💾 Token data parsed successfully")
 
-        # Check if token already exists
-        existing = supabase.table("oauth_tokens").select("id").eq("user_email", email).execute()
-        print(f"💾 Existing token check: {bool(existing.data)}")
+        # Use database function to bypass schema cache issues
+        result = supabase.rpc('upsert_oauth_token', {
+            'p_email': email,
+            'p_token': token_data
+        }).execute()
 
-        if existing.data:
-            # Update existing token - don't manually set updated_at, let DB handle it
-            result = supabase.table("oauth_tokens").update({
-                "token_json": token_data
-            }).eq("user_email", email).execute()
-            print(f"✅ Token updated in Supabase for {email}")
-            print(f"✅ Update result: {result}")
-        else:
-            # Insert new token
-            result = supabase.table("oauth_tokens").insert({
-                "user_email": email,
-                "token_json": token_data
-            }).execute()
-            print(f"✅ Token stored in Supabase for {email}")
-            print(f"✅ Insert result: {result}")
+        print(f"✅ Token stored/updated in Supabase for {email} (ID: {result.data})")
 
     except Exception as e:
-        print(f"❌ Error storing token in Supabase for {email}: {e}")
-        import traceback
-        traceback.print_exc()
+        # Fallback to PostgREST API if RPC fails
+        try:
+            print(f"⚠️ RPC failed, trying PostgREST API: {e}")
+            existing = supabase.table("oauth_tokens").select("id").eq("user_email", email).execute()
+
+            if existing.data:
+                result = supabase.table("oauth_tokens").update({
+                    "token_json": token_data
+                }).eq("user_email", email).execute()
+                print(f"✅ Token updated via PostgREST for {email}")
+            else:
+                result = supabase.table("oauth_tokens").insert({
+                    "user_email": email,
+                    "token_json": token_data
+                }).execute()
+                print(f"✅ Token stored via PostgREST for {email}")
+        except Exception as fallback_error:
+            print(f"❌ Error storing token in Supabase for {email}: {fallback_error}")
+            import traceback
+            traceback.print_exc()
 
 def get_token(email: str):
     """Fetch token JSON string for a given user email from Supabase."""
     try:
         print(f"🔍 Attempting to retrieve token for: {email}")
+
+        # Use database function to bypass schema cache issues
+        try:
+            result = supabase.rpc('get_oauth_token', {
+                'p_email': email
+            }).execute()
+
+            token_json = result.data
+
+            if token_json:
+                print(f"✅ Token retrieved via RPC from Supabase for {email}")
+                if isinstance(token_json, dict):
+                    return json.dumps(token_json)
+                elif isinstance(token_json, str):
+                    return token_json
+                else:
+                    print(f"❌ Unexpected token format: {type(token_json)}")
+                    return None
+            else:
+                print(f"⚠️ No token found in Supabase for {email}")
+                return None
+
+        except Exception as rpc_error:
+            print(f"⚠️ RPC method failed, trying PostgREST API: {rpc_error}")
+
+        # Fallback to PostgREST API
         result = supabase.table("oauth_tokens").select("token_json").eq("user_email", email).execute()
 
         print(f"🔍 Supabase query executed. Has data: {bool(result.data)}")
@@ -68,11 +99,9 @@ def get_token(email: str):
             print(f"✅ Token retrieved from Supabase for {email}")
             token_json = result.data[0].get("token_json")
 
-            # If token_json is already a dict, convert to string for backward compatibility
             if isinstance(token_json, dict):
                 print(f"✅ Token is dict, converting to JSON string")
                 return json.dumps(token_json)
-            # If it's already a string, return as-is
             elif isinstance(token_json, str):
                 print(f"✅ Token is string, returning as-is")
                 return token_json
@@ -92,7 +121,10 @@ def get_token(email: str):
 def delete_token(email: str):
     """Delete token for a given user email from Supabase."""
     try:
-        result = supabase.table("oauth_tokens").delete().eq("user_email", email).execute()
+        # Use database function to bypass schema cache issues
+        result = supabase.rpc('delete_oauth_token', {
+            'p_email': email
+        }).execute()
 
         if result.data:
             print(f"✅ Token deleted from Supabase for {email}")
@@ -101,3 +133,5 @@ def delete_token(email: str):
 
     except Exception as e:
         print(f"❌ Error deleting token from Supabase for {email}: {e}")
+        import traceback
+        traceback.print_exc()
