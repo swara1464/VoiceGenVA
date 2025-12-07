@@ -43,7 +43,7 @@ function App() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleMicResult = (text) => {
+ /* const handleMicResult = (text) => {
     // Append to existing input instead of replacing to allow seamless voice + typing integration
     setInput(prevInput => {
       if (prevInput.trim()) {
@@ -54,7 +54,18 @@ function App() {
         return text;
       }
     });
-  };
+  };*/
+
+  // frontend/src/App.jsx
+
+// --- REPLACE THE EXISTING handleMicResult FUNCTION WITH THIS ---
+  const handleMicResult = (text) => {
+    // FIX: This now replaces the existing input text with the new voice 
+    // transcription. This allows for seamless editing, where you can speak, 
+    // and then immediately start typing or delete the transcribed text.
+    setInput(text);
+  };
+// --- END REPLACEMENT --
   
   const handleExecute = async () => {
     const { action, params } = approvalProps;
