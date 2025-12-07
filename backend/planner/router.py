@@ -147,7 +147,10 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
     """
     Sends user input to Cohere and returns structured JSON plan.
     """
+    print("="*80)
     print(f"🎯 PLANNER CALLED with input: {user_input}")
+    print(f"👤 User email: {user_email}")
+    print("="*80)
 
     if not COHERE_API_KEY:
         print("❌ No Cohere API key")

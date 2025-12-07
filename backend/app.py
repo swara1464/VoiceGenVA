@@ -86,18 +86,49 @@ def root():
     return jsonify({"message": "Vocal Agent backend running"})
 
 
+# Diagnostic endpoint
+@app.route("/test/email-detection", methods=["POST", "OPTIONS"])
+def test_email_detection():
+    """Quick diagnostic endpoint to test email detection"""
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    data = request.json
+    test_input = data.get("prompt", "")
+
+    # Test the failsafe logic
+    email_keywords = ["send", "email", "mail", "compose", "draft", "message", "write to"]
+    user_wants_email = any(keyword in test_input.lower() for keyword in email_keywords)
+
+    result = {
+        "input": test_input,
+        "email_keywords_found": [kw for kw in email_keywords if kw in test_input.lower()],
+        "should_trigger_email": user_wants_email,
+        "failsafe_would_activate": user_wants_email
+    }
+
+    print(f"🧪 EMAIL DETECTION TEST: {result}")
+    return jsonify(result)
+
+
 # Planner route - NEW: Cohere returns JSON plan, executor processes it
 @app.route("/planner/run", methods=["POST", "OPTIONS"])
 def planner_run():
+    print("\n" + "="*80)
+    print("🌐 INCOMING REQUEST TO /planner/run")
+    print("="*80)
+
     if request.method == "OPTIONS":
+        print("⚡ OPTIONS request - returning early")
         return jsonify({}), 200
 
     data = request.json
     prompt = data.get("prompt", "")
     user = get_user_from_jwt()
 
-    print(f"🌐 /planner/run called with prompt: {prompt}")
-    print(f"👤 User: {user.get('email') if user else 'None'}")
+    print(f"📨 Prompt received: '{prompt}'")
+    print(f"👤 User authenticated: {user.get('email') if user else 'None'}")
+    print("="*80)
 
     if not user:
         print("❌ User not logged in")
@@ -116,6 +147,11 @@ def planner_run():
         print("⚙️ Step 2: Processing planner output...")
         execution_result = process_planner_output(plan, user["email"])
         print(f"✅ Execution result: {execution_result}")
+        print(f"✅ Response type being returned: {execution_result.get('response_type')}")
+
+        if execution_result.get('response_type') == 'EMAIL_PREVIEW':
+            print("🎯 EMAIL_PREVIEW CONFIRMED - Frontend should open email form")
+            print(f"🎯 Email params: {execution_result.get('params')}")
 
         return jsonify(execution_result)
 
