@@ -11,3 +11,4 @@ cohere.core
 gunicorn
 pytz
 PyJWT
+dateparser
