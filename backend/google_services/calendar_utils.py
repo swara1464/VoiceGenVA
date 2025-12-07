@@ -240,11 +240,12 @@ def get_event_meet_link(event_id: str = None, summary_search: str = None, user_e
         return {"success": False, "message": f"Failed to retrieve event: {e}"}
 
 
-def delete_calendar_event(event_id: str, user_email: str = None):
+def delete_calendar_event(event_id: str = None, summary: str = None, user_email: str = None):
     """
-    Deletes a calendar event by ID.
+    Deletes a calendar event by ID or title.
 
-    :param event_id: ID of the event to delete
+    :param event_id: ID of the event to delete (optional if summary provided)
+    :param summary: Title of event to search and delete (optional if event_id provided)
     :param user_email: Email of the user (for token retrieval)
     """
     service, error = get_google_service("calendar", "v3", user_email)
@@ -252,6 +253,34 @@ def delete_calendar_event(event_id: str, user_email: str = None):
         return {"success": False, "message": error}
 
     try:
+        # If no event_id, search by summary
+        if not event_id and summary:
+            now = datetime.now().isoformat() + 'Z'
+
+            events_result = service.events().list(
+                calendarId='primary',
+                timeMin=now,
+                maxResults=50,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+
+            events = events_result.get('items', [])
+            matching_event = None
+
+            for event in events:
+                if summary.lower() in event.get('summary', '').lower():
+                    matching_event = event
+                    break
+
+            if not matching_event:
+                return {"success": False, "message": f"No event found with title '{summary}'"}
+
+            event_id = matching_event['id']
+
+        if not event_id:
+            return {"success": False, "message": "No event_id or summary provided"}
+
         service.events().delete(calendarId='primary', eventId=event_id).execute()
 
         if user_email:
