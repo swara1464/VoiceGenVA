@@ -1,5 +1,19 @@
 # backend/google_services/drive_utils.py
 from .gmail_utils import get_google_service
+import re
+
+def escape_drive_query(text: str) -> str:
+    """
+    Escape special characters in Drive API query strings.
+    Single quotes must be escaped as \' or wrapped carefully.
+    """
+    if not text:
+        return ""
+
+    text = text.strip()
+    text = text.replace("\\", "\\\\")
+    text = text.replace("'", "\\'")
+    return text
 
 def search_drive_files(query: str, user_email: str = None):
     """
@@ -13,8 +27,12 @@ def search_drive_files(query: str, user_email: str = None):
         return {"success": False, "message": error}
 
     try:
-        # Fixed query with proper parentheses for operator precedence
-        search_query = f"(name contains '{query}' or fullText contains '{query}') and trashed = false"
+        escaped_query = escape_drive_query(query)
+
+        if not escaped_query:
+            return {"success": False, "message": "Invalid search query."}
+
+        search_query = f"(name contains '{escaped_query}' or fullText contains '{escaped_query}') and trashed = false"
 
         results = service.files().list(
             q=search_query,
@@ -133,8 +151,12 @@ def list_files_in_folder(folder_name: str, user_email: str = None):
         return {"success": False, "message": error}
 
     try:
-        # First, find the folder
-        folder_query = f"name contains '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        escaped_folder_name = escape_drive_query(folder_name)
+
+        if not escaped_folder_name:
+            return {"success": False, "message": "Invalid folder name."}
+
+        folder_query = f"name contains '{escaped_folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
 
         folder_results = service.files().list(
             q=folder_query,

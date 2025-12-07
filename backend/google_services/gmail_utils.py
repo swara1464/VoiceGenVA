@@ -62,17 +62,26 @@ def create_message(to, subject, body, cc=None, bcc=None):
     return {"raw": raw_message}
 
 
-def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str = None, user_email=None):
+def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str = None, user_email=None, approved: bool = False):
     """
     Creates and sends an email using Gmail API with optional CC and BCC.
 
-    :param to: Primary recipient(s) - comma separated
+    :param to: Primary recipient(s) - comma separated or list
     :param subject: Email subject
     :param body: Email body content
-    :param cc: CC recipient(s) - comma separated (optional)
-    :param bcc: BCC recipient(s) - comma separated (optional)
+    :param cc: CC recipient(s) - comma separated or list (optional)
+    :param bcc: BCC recipient(s) - comma separated or list (optional)
     :param user_email: Email of the user (for token retrieval)
+    :param approved: Must be True for send to proceed (safety check)
     """
+    if not approved:
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_SEND", "REJECTED", {
+                "reason": "approval_missing"
+            })
+        return {"success": False, "message": "Email send rejected: user approval required"}
+
     service, error = get_google_service("gmail", "v1", user_email)
     if error:
         return {"success": False, "message": error}
@@ -81,11 +90,22 @@ def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str 
         message = create_message(to, subject, body, cc, bcc)
         send_response = service.users().messages().send(userId="me", body=message).execute()
 
-        recipients = to
+        to_list = to if isinstance(to, list) else [to]
+        recipients = ", ".join(to_list)
         if cc:
-            recipients += f" (CC: {cc})"
+            cc_list = cc if isinstance(cc, list) else [cc]
+            recipients += f" (CC: {', '.join(cc_list)})"
         if bcc:
-            recipients += f" (BCC: {bcc})"
+            bcc_list = bcc if isinstance(bcc, list) else [bcc]
+            recipients += f" (BCC: {', '.join(bcc_list)})"
+
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_SENT", "SUCCESS", {
+                "messageId": send_response.get('id'),
+                "to": to_list,
+                "cc": cc if isinstance(cc, list) else [cc] if cc else []
+            })
 
         return {
             "success": True,

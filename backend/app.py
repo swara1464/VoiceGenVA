@@ -142,6 +142,61 @@ def agent_execute():
     return jsonify(result)
 
 
+# Gmail compose (build preview)
+@app.route("/api/gmail/compose", methods=["POST", "OPTIONS"])
+def gmail_compose():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    data = request.json
+    user = get_user_from_jwt()
+
+    if not user:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    user_email = user["email"]
+    from google_services.gmail_compose import build_gmail_preview
+
+    preview = build_gmail_preview(
+        user_instruction=data.get('instruction', ''),
+        recipient_text=data.get('to', ''),
+        cc_text=data.get('cc', ''),
+        bcc_text=data.get('bcc', ''),
+        user_email=user_email,
+        user_full_name=user.get('name', '')
+    )
+
+    return jsonify(preview)
+
+
+# Gmail send (with approval check)
+@app.route("/api/gmail/send", methods=["POST", "OPTIONS"])
+def gmail_send():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    data = request.json
+    user = get_user_from_jwt()
+
+    if not user:
+        return jsonify({"success": False, "error": "Not logged in"}), 401
+
+    user_email = user["email"]
+    from google_services.gmail_utils import send_draft_email
+
+    result = send_draft_email(
+        to=data.get('to'),
+        subject=data.get('subject', ''),
+        body=data.get('body', ''),
+        cc=data.get('cc'),
+        bcc=data.get('bcc'),
+        user_email=user_email,
+        approved=data.get('approved', False)
+    )
+
+    return jsonify(result)
+
+
 # Fetch logs
 @app.route("/logs", methods=["GET", "OPTIONS"])
 def logs_route():

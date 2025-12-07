@@ -2,7 +2,8 @@
 import re
 from flask import session
 from google_services.gmail_utils import send_draft_email
-from google_services.calendar_utils import create_calendar_event, get_upcoming_events, get_event_meet_link
+from google_services.gmail_compose import build_gmail_preview
+from google_services.calendar_utils import create_calendar_event, get_upcoming_events, get_event_meet_link, create_instant_meet
 from google_services.drive_utils import search_drive_files, list_recent_files, get_shareable_link, list_files_in_folder
 from google_services.docs_utils import create_document, append_to_document, search_documents
 from google_services.sheets_utils import create_spreadsheet, add_row_to_sheet, read_sheet_data, update_sheet_cell
@@ -10,7 +11,8 @@ from google_services.tasks_utils import create_task, list_tasks, complete_task, 
 from google_services.keep_utils import create_note, list_notes, delete_note
 from google_services.contacts_utils import list_contacts, search_contacts, get_contact_email
 from logs.log_utils import log_execution
-from planner.router import generate_email_body 
+from planner.router import generate_email_body
+from utils.intent_classifier import classify_intent 
 
 # --- Tool Call Dispatcher (Simplified) ---
 
@@ -28,9 +30,21 @@ def execute_action(action: str, params: dict, user_email: str):
             params.get('body'),
             params.get('cc'),
             params.get('bcc'),
-            user_email
+            user_email,
+            approved=params.get('approved', False)
         )
         action_name = "Email Sent"
+
+    elif action == "GMAIL_COMPOSE":
+        result = build_gmail_preview(
+            user_instruction=params.get('instruction', ''),
+            recipient_text=params.get('to', ''),
+            cc_text=params.get('cc', ''),
+            bcc_text=params.get('bcc', ''),
+            user_email=user_email,
+            user_full_name=params.get('user_name', '')
+        )
+        action_name = "Email Preview Built"
 
     elif action == "CALENDAR_CREATE":
         result = create_calendar_event(
@@ -54,6 +68,15 @@ def execute_action(action: str, params: dict, user_email: str):
             user_email
         )
         action_name = "Meet Link Retrieved"
+
+    elif action == "CALENDAR_INSTANT_MEET":
+        result = create_instant_meet(
+            title=params.get('title', 'Google Meet'),
+            attendees=params.get('attendees', []),
+            user_email=user_email,
+            timezone=params.get('timezone', 'UTC')
+        )
+        action_name = "Instant Meet Created"
 
     elif action == "DRIVE_SEARCH":
         result = search_drive_files(params.get('query'), user_email)

@@ -10,6 +10,8 @@ import ChatBubble from "./components/ChatBubble";
 import ApprovalModal from "./components/ApprovalModal";
 import EmailForm from "./components/EmailForm";
 import TasksManager from "./components/TasksManager";
+import GmailPreview from "./components/GmailPreview";
+import QuickActions from "./components/QuickActions";
 
 function App() {
   const [input, setInput] = useState("");
@@ -24,6 +26,9 @@ function App() {
   const [emailFormData, setEmailFormData] = useState({});
   const [isTasksManagerOpen, setIsTasksManagerOpen] = useState(false);
   const [isTTSEnabled, setIsTTSEnabled] = useState(true);
+  const [isGmailPreviewOpen, setIsGmailPreviewOpen] = useState(false);
+  const [gmailPreview, setGmailPreview] = useState(null);
+  const [userEmail, setUserEmail] = useState("");
 
   const speakText = (text) => {
     if (!isTTSEnabled || !window.speechSynthesis) return;
@@ -137,6 +142,10 @@ function App() {
     speakText(cancelMessage);
   };
 
+  const handleQuickActionClick = (exampleText) => {
+    setInput(exampleText);
+  };
+
   const handleSend = async () => {
     if (!input.trim()) return;
 
@@ -152,6 +161,10 @@ function App() {
         setEmailFormData(data.params);
         setIsEmailFormOpen(true);
         speakText(data.message);
+      } else if (data.response_type === "GMAIL_PREVIEW") {
+        setGmailPreview(data);
+        setIsGmailPreviewOpen(true);
+        speakText(data.message || "Email preview ready for review");
       } else if (data.response_type === "APPROVAL") {
         setApprovalProps({
           message: data.message,
@@ -178,6 +191,26 @@ function App() {
       speakText(errorMessage);
       console.error(err);
     }
+  };
+
+  const handleGmailPreviewSend = (result) => {
+    setIsGmailPreviewOpen(false);
+    const successMessage = result.message || "Email sent successfully!";
+    setChatHistory(prev => [
+      ...prev,
+      { message: successMessage, sender: "agent" }
+    ]);
+    speakText(successMessage);
+  };
+
+  const handleGmailPreviewCancel = () => {
+    setIsGmailPreviewOpen(false);
+    const cancelMessage = "Email cancelled.";
+    setChatHistory(prev => [
+      ...prev,
+      { message: cancelMessage, sender: "agent" }
+    ]);
+    speakText(cancelMessage);
   };
 
 
@@ -329,6 +362,8 @@ function App() {
         )}
       </div>
 
+      <QuickActions onActionClick={handleQuickActionClick} />
+
       <div style={{
         display: "flex",
         gap: "0.75rem",
@@ -404,6 +439,14 @@ function App() {
       <TasksManager
         isOpen={isTasksManagerOpen}
         onClose={() => setIsTasksManagerOpen(false)}
+      />
+
+      <GmailPreview
+        isOpen={isGmailPreviewOpen}
+        preview={gmailPreview}
+        onSend={handleGmailPreviewSend}
+        onCancel={handleGmailPreviewCancel}
+        userEmail={userEmail}
       />
     </div>
   );

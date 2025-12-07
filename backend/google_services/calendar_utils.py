@@ -1,5 +1,8 @@
 # backend/google_services/calendar_utils.py
-from .gmail_utils import get_google_service # Reuse the auth function
+from .gmail_utils import get_google_service
+from datetime import datetime, timedelta
+import pytz
+from logs.log_utils import log_execution
 
 def create_calendar_event(summary: str, description: str, start_time: str, end_time: str, attendees: list = None, user_email: str = None):
     """
@@ -103,6 +106,70 @@ def get_upcoming_events(max_results: int = 10, user_email: str = None):
 
     except Exception as e:
         return {"success": False, "message": f"Failed to retrieve upcoming events: {e}"}
+
+
+def create_instant_meet(title: str = "Google Meet", attendees: list = None, user_email: str = None, timezone: str = "UTC"):
+    """
+    Create an instant Google Meet event starting now and ending in 1 hour.
+
+    :param title: Meeting title (default: "Google Meet")
+    :param attendees: List of attendee email addresses
+    :param user_email: Email of the user (for token retrieval)
+    :param timezone: Timezone for the event (default: UTC)
+    """
+    service, error = get_google_service("calendar", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        now = datetime.now(pytz.timezone(timezone))
+        start_time = now.isoformat()
+        end_time = (now + timedelta(hours=1)).isoformat()
+
+        event = {
+            'summary': title,
+            'description': 'Instant meeting created via voice agent',
+            'start': {'dateTime': start_time, 'timeZone': timezone},
+            'end': {'dateTime': end_time, 'timeZone': timezone},
+            'conferenceData': {
+                'createRequest': {
+                    'requestId': f'instant-meet-{int(datetime.now().timestamp())}',
+                    'conferenceSolutionKey': {'type': 'hangoutsMeet'},
+                },
+            },
+            'attendees': [{'email': email} for email in attendees] if attendees else [],
+            'reminders': {'useDefault': True},
+        }
+
+        created_event = service.events().insert(
+            calendarId='primary',
+            body=event,
+            conferenceDataVersion=1
+        ).execute()
+
+        meet_link = created_event.get('hangoutLink')
+
+        if user_email:
+            log_execution(user_email, "CALENDAR_INSTANT_MEET", "CREATED", {
+                "title": title,
+                "attendees_count": len(attendees) if attendees else 0,
+                "meet_link": meet_link
+            })
+
+        return {
+            "success": True,
+            "message": f"Instant meeting '{title}' created. Meet link: {meet_link}",
+            "details": {
+                "event_id": created_event.get('id'),
+                "meet_link": meet_link,
+                "title": title,
+                "start": start_time,
+                "end": end_time
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to create instant meet: {e}"}
 
 
 def get_event_meet_link(event_id: str = None, summary_search: str = None, user_email: str = None):
