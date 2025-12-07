@@ -16,6 +16,8 @@ CRITICAL: Your response MUST be parseable by json.loads(). Do not write anything
 DETECT USER INTENT:
 - Email keywords: "send email", "email to", "mail to", "compose", "draft" -> GMAIL_COMPOSE
 - Calendar keywords: "schedule", "meeting", "appointment", "calendar", "create event" -> CALENDAR_CREATE
+- Calendar list: "list events", "upcoming events", "my events" -> CALENDAR_LIST
+- Calendar delete: "delete event", "remove event", "cancel event" -> CALENDAR_DELETE
 - Contact keywords: "what is", "email", "phone number", "contact" -> CONTACTS_SEARCH
 - Drive keywords: "search drive", "find file", "look for", "my documents" -> DRIVE_SEARCH
 - Small talk: "hi", "hello", "how are you", "thanks", "goodbye" -> SMALL_TALK
@@ -51,6 +53,13 @@ CALENDAR_LIST (for viewing events):
   "max_results": 10
 }
 
+CALENDAR_DELETE (for deleting events):
+{
+  "action": "CALENDAR_DELETE",
+  "event_id": "event_id_here",
+  "summary": "event title to find"
+}
+
 CONTACTS_SEARCH (for finding contacts):
 {
   "action": "CONTACTS_SEARCH",
@@ -71,19 +80,25 @@ SMALL_TALK (only for greetings/casual chat):
 
 STRICT RULES:
 1. ANY email request MUST use GMAIL_COMPOSE (never SMALL_TALK)
-2. If user mentions a name without email, use "name@placeholder.com" for to field
-3. Always generate complete subject and body for emails
-4. Parse dates like "tomorrow", "next Monday" to ISO format
-5. For "instant meeting" or "meeting now", set instant: true
-6. Return ONLY the JSON object, nothing else
+2. ALWAYS set "missing_fields": [] for all actions
+3. If user mentions a name without email, use "name@placeholder.com" for to field
+4. Always generate complete subject and body for emails
+5. Parse dates like "tomorrow", "next Monday" to ISO format
+6. For "instant meeting" or "meeting now", set instant: true
+7. For delete event, extract event title into "summary" field
+8. For drive search, extract the KEY TERM (e.g., "Swara's documents" -> "Swara", "project report" -> "project report")
+9. Return ONLY the JSON object, nothing else
 
 EXAMPLES:
 
 User: "Send email to Jubi saying I can't attend class tomorrow"
 {"action": "GMAIL_COMPOSE", "to": ["jubi@placeholder.com"], "cc": [], "bcc": [], "subject": "Unable to Attend Class Tomorrow", "body": "Hi Jubi,\n\nI wanted to let you know that I won't be able to attend class tomorrow.\n\nThank you for understanding.\n\nBest regards", "missing_fields": []}
 
-User: "Send email to swarapawanekar@gmail.com cc swarasameerpawanekar@gmail.com bcc 1ms22ai063@msrit.edu saying 'This is my resume' subject 'Resume'"
+User: "Send email to swarapawanekar@gmail.com cc swarasameerpawanekar@gmail.com bcc 1ms22ai063@msrit.edu saying This is my resume subject Resume"
 {"action": "GMAIL_COMPOSE", "to": ["swarapawanekar@gmail.com"], "cc": ["swarasameerpawanekar@gmail.com"], "bcc": ["1ms22ai063@msrit.edu"], "subject": "Resume", "body": "This is my resume", "missing_fields": []}
+
+User: "Delete the event Daily Sync"
+{"action": "CALENDAR_DELETE", "event_id": "", "summary": "Daily Sync"}
 
 User: "Schedule a team meeting for tomorrow at 9 AM"
 {"action": "CALENDAR_CREATE", "summary": "Team Meeting", "description": "Scheduled via Vocal Agent", "start_time": "2025-12-08T09:00:00Z", "end_time": "2025-12-08T10:00:00Z", "attendees": [], "instant": false, "missing_fields": []}
@@ -93,6 +108,9 @@ User: "What is Swara's email?"
 
 User: "Search my drive for Devops Report"
 {"action": "DRIVE_SEARCH", "query": "Devops Report"}
+
+User: "Hey agent search Drive for Swara's documents"
+{"action": "DRIVE_SEARCH", "query": "Swara"}
 
 User: "hi"
 {"action": "SMALL_TALK", "response": "Hello! How can I help you today?"}
@@ -167,20 +185,28 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
         # Parse JSON
         try:
             plan = json.loads(response_text)
+            print(f"✓ LLM returned valid JSON: {plan}")
 
             # 1. GMAIL Critical Field Check (Breaks Looping)
             if plan.get("action") == "GMAIL_COMPOSE":
                 missing = []
                 # Check if 'to' is present and not an empty list
-                if not plan.get("to") or not plan["to"]: missing.append("recipient (to)")
-                if not plan.get("subject"): missing.append("subject")
-                if not plan.get("body"): missing.append("body/content")
+                to_field = plan.get("to", [])
+                if not to_field or (isinstance(to_field, list) and len(to_field) == 0):
+                    missing.append("recipient (to)")
+                if not plan.get("subject"):
+                    missing.append("subject")
+                if not plan.get("body"):
+                    missing.append("body/content")
 
                 if missing:
+                    print(f"⚠️ Gmail missing fields: {missing}")
                     return {
                         "action": "ASK_USER",
                         "message": f"I cannot draft the email because the LLM is missing: {', '.join(missing)}. Please provide all details in one consolidated message."
                     }
+
+                print(f"✓ Gmail has all required fields")
 
             # 2. CALENDAR Critical Field Check (Breaks Looping)
             if plan.get("action") == "CALENDAR_CREATE" and not plan.get("instant"):
@@ -205,8 +231,8 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
             return plan
 
         except json.JSONDecodeError as e:
-            print(f"JSON decode error: {e}")
-            print(f"Response was: {response_text}")
+            print(f"❌ JSON decode error: {e}")
+            print(f"❌ Raw LLM response: {response_text[:500]}")
 
             # Check if this is an email request that failed to parse
             email_keywords = ["email", "send", "mail", "compose", "draft", "message to"]

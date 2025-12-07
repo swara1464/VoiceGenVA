@@ -56,6 +56,7 @@ def execute_action(action: str, params: dict, user_email: str):
     elif action == "CALENDAR_DELETE":
         result = delete_calendar_event(
             event_id=params.get('event_id'),
+            summary=params.get('summary'),
             user_email=user_email
         )
         action_name = "Calendar Event Deleted"
@@ -191,6 +192,18 @@ def process_planner_output(plan: dict, user_email: str):
             return {"response_type": "RESULT", "response": response}
         else:
             return {"response_type": "RESULT", "response": result.get('message', 'No events found')}
+
+    # Handle Calendar Delete - execute immediately
+    if action == "CALENDAR_DELETE":
+        result = execute_action("CALENDAR_DELETE", {
+            "event_id": plan.get("event_id"),
+            "summary": plan.get("summary")
+        }, user_email)
+
+        if result.get('success'):
+            return {"response_type": "RESULT", "response": result['message']}
+        else:
+            return {"response_type": "ERROR", "response": result.get('message', 'Failed to delete event')}
 
     # Handle Contacts Search - execute immediately
     if action == "CONTACTS_SEARCH":
