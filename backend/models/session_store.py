@@ -60,13 +60,13 @@ def get_token(email: str):
     """Fetch token JSON string for a given user email from Supabase."""
     try:
         print(f"🔍 Attempting to retrieve token for: {email}")
-        result = supabase.table("oauth_tokens").select("token_json").eq("user_email", email).maybeSingle().execute()
+        result = supabase.table("oauth_tokens").select("token_json").eq("user_email", email).execute()
 
         print(f"🔍 Supabase query executed. Has data: {bool(result.data)}")
 
-        if result.data:
+        if result.data and len(result.data) > 0:
             print(f"✅ Token retrieved from Supabase for {email}")
-            token_json = result.data.get("token_json")
+            token_json = result.data[0].get("token_json")
 
             # If token_json is already a dict, convert to string for backward compatibility
             if isinstance(token_json, dict):
