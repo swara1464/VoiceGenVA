@@ -504,4 +504,19 @@ function App() {
               textShadow: "0 1px 2px rgba(0,0,0,0.2)"
             }}>
               AI-Powered Google Workspace Assistant
-            </p
+            </p>
+          </div>
+
+          <Routes>
+            <Route path="/" element={<LoginPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/history" element={<History />} />
+            <Route path="/agent" element={agentView} />
+          </Routes>
+        </div>
+      </div>
+    </BrowserRouter>
+  );
+}
+
+export default App;

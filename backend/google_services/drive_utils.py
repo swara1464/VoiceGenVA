@@ -18,6 +18,7 @@ def escape_drive_query(text: str) -> str:
 def search_drive_files(query: str, user_email: str = None):
     """
     Searches Google Drive for files matching a query in name or content.
+    Only returns files owned by the user (excludes shared files).
 
     :param query: Text string to search for in file names or content.
     :param user_email: Email of the user (for token retrieval).
@@ -32,7 +33,8 @@ def search_drive_files(query: str, user_email: str = None):
         if not escaped_query:
             return {"success": False, "message": "Invalid search query."}
 
-        search_query = f"(name contains '{escaped_query}' or fullText contains '{escaped_query}') and trashed = false"
+        # Filter for owned files only: 'me' in owners
+        search_query = f"(name contains '{escaped_query}' or fullText contains '{escaped_query}') and trashed = false and 'me' in owners"
 
         results = service.files().list(
             q=search_query,

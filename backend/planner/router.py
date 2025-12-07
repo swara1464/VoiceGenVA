@@ -206,7 +206,7 @@ def run_planner(user_input: str) -> dict:
                 if not plan.get("to") or not plan["to"]: missing.append("recipient (to)")
                 if not plan.get("subject"): missing.append("subject")
                 if not plan.get("body"): missing.append("body/content")
-                
+
                 if missing:
                     return {
                         "action": "ASK_USER",
@@ -238,9 +238,11 @@ def run_planner(user_input: str) -> dict:
         except json.JSONDecodeError as e:
             print(f"JSON decode error: {e}")
             print(f"Response was: {response_text}")
+            # Fallback: treat as small talk if JSON parsing fails
+            fallback_response = call_llm_for_small_talk(user_input)
             return {
-                "action": "ERROR",
-                "message": "Failed to parse LLM response as JSON"
+                "action": "SMALL_TALK",
+                "response": fallback_response
             }
 
     except Exception as e:

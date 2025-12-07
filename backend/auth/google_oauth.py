@@ -101,6 +101,7 @@ def callback():
     payload = {
         "email": session["user"]["email"],
         "name": session["user"]["name"],
+        "picture": session["user"].get("picture", ""),
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
@@ -131,7 +132,11 @@ def me():
 
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        return {"email": payload["email"], "name": payload["name"]}
+        return {
+            "email": payload["email"],
+            "name": payload["name"],
+            "picture": payload.get("picture", "")
+        }
     except jwt.ExpiredSignatureError:
         return {"error": "Token expired"}, 401
     except jwt.InvalidTokenError:
