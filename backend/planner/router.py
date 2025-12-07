@@ -28,6 +28,14 @@ DETECT USER INTENT (MOST IMPORTANT FIRST):
 - Contact keywords: "what is", "email", "phone number", "contact" -> CONTACTS_SEARCH
 - Contact create: "add contact", "create contact", "new contact" -> CONTACTS_CREATE
 - Drive keywords: "search drive", "find file", "look for", "my documents" -> DRIVE_SEARCH
+- Task create: "create task", "add task", "new task", "remind me to" -> TASKS_CREATE
+- Task list: "list tasks", "show tasks", "my tasks" -> TASKS_LIST
+- Task complete: "mark task complete", "complete task", "finish task" -> TASKS_COMPLETE
+- Sheets create: "create spreadsheet", "new spreadsheet", "make a sheet" -> SHEETS_CREATE
+- Sheets add row: "add row to sheet", "append to spreadsheet" -> SHEETS_ADD_ROW
+- Sheets read: "read sheet", "get sheet data", "show spreadsheet" -> SHEETS_READ
+- Docs create: "create document", "new doc", "make a document" -> DOCS_CREATE
+- Docs append: "add to document", "append to doc", "write to document" -> DOCS_APPEND
 - Small talk: "hi", "hello", "how are you", "thanks", "goodbye" -> SMALL_TALK
 
 JSON OUTPUT FORMATS (COPY EXACTLY):
@@ -116,6 +124,61 @@ DRIVE_SEARCH (for finding files):
 {
   "action": "DRIVE_SEARCH",
   "query": "search keywords"
+}
+
+TASKS_CREATE (for creating tasks):
+{
+  "action": "TASKS_CREATE",
+  "title": "Task title",
+  "notes": "Task description",
+  "due_date": "2025-12-10T00:00:00Z"
+}
+
+TASKS_LIST (for listing tasks):
+{
+  "action": "TASKS_LIST",
+  "max_results": 10
+}
+
+TASKS_COMPLETE (for marking tasks complete):
+{
+  "action": "TASKS_COMPLETE",
+  "task_id": "",
+  "title_search": "task title to find"
+}
+
+SHEETS_CREATE (for creating spreadsheets):
+{
+  "action": "SHEETS_CREATE",
+  "title": "Spreadsheet Title"
+}
+
+SHEETS_ADD_ROW (for adding data to spreadsheet):
+{
+  "action": "SHEETS_ADD_ROW",
+  "sheet_id": "spreadsheet_id",
+  "range_name": "Sheet1!A:D",
+  "values": ["Value1", "Value2", "Value3"]
+}
+
+SHEETS_READ (for reading spreadsheet data):
+{
+  "action": "SHEETS_READ",
+  "sheet_id": "spreadsheet_id",
+  "range_name": "Sheet1!A1:D10"
+}
+
+DOCS_CREATE (for creating documents):
+{
+  "action": "DOCS_CREATE",
+  "title": "Document Title"
+}
+
+DOCS_APPEND (for adding text to document):
+{
+  "action": "DOCS_APPEND",
+  "doc_id": "document_id",
+  "text": "Text to append"
 }
 
 SMALL_TALK (only for greetings/casual chat):

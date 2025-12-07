@@ -125,6 +125,92 @@ def execute_action(action: str, params: dict, user_email: str):
         result = search_drive_files(params.get('query'), user_email)
         action_name = "Drive Search Performed"
 
+    # TASKS
+    elif action == "TASKS_CREATE":
+        from google_services.tasks_utils import create_task
+        result = create_task(
+            title=params.get('title'),
+            notes=params.get('notes', ''),
+            due_date=params.get('due_date'),
+            user_email=user_email
+        )
+        action_name = "Task Created"
+
+    elif action == "TASKS_LIST":
+        from google_services.tasks_utils import list_tasks
+        result = list_tasks(
+            max_results=params.get('max_results', 10),
+            user_email=user_email
+        )
+        action_name = "Tasks Listed"
+
+    elif action == "TASKS_COMPLETE":
+        from google_services.tasks_utils import complete_task, list_tasks
+        task_id = params.get('task_id')
+        title_search = params.get('title_search')
+
+        # If no task_id, search by title
+        if not task_id and title_search:
+            tasks_result = list_tasks(max_results=50, user_email=user_email)
+            if tasks_result.get('success'):
+                for task in tasks_result['details']:
+                    if title_search.lower() in task['title'].lower():
+                        task_id = task['id']
+                        break
+
+        if task_id:
+            result = complete_task(task_id=task_id, user_email=user_email)
+            action_name = "Task Completed"
+        else:
+            result = {"success": False, "message": f"Task '{title_search}' not found"}
+            action_name = "Task Not Found"
+
+    # SHEETS
+    elif action == "SHEETS_CREATE":
+        from google_services.sheets_utils import create_spreadsheet
+        result = create_spreadsheet(
+            title=params.get('title'),
+            user_email=user_email
+        )
+        action_name = "Spreadsheet Created"
+
+    elif action == "SHEETS_ADD_ROW":
+        from google_services.sheets_utils import add_row_to_sheet
+        result = add_row_to_sheet(
+            sheet_id=params.get('sheet_id'),
+            range_name=params.get('range_name', 'Sheet1!A:Z'),
+            values=params.get('values', []),
+            user_email=user_email
+        )
+        action_name = "Row Added to Sheet"
+
+    elif action == "SHEETS_READ":
+        from google_services.sheets_utils import read_sheet_data
+        result = read_sheet_data(
+            sheet_id=params.get('sheet_id'),
+            range_name=params.get('range_name', 'Sheet1!A1:Z100'),
+            user_email=user_email
+        )
+        action_name = "Sheet Data Read"
+
+    # DOCS
+    elif action == "DOCS_CREATE":
+        from google_services.docs_utils import create_document
+        result = create_document(
+            title=params.get('title'),
+            user_email=user_email
+        )
+        action_name = "Document Created"
+
+    elif action == "DOCS_APPEND":
+        from google_services.docs_utils import append_to_document
+        result = append_to_document(
+            doc_id=params.get('doc_id'),
+            content=params.get('text'),
+            user_email=user_email
+        )
+        action_name = "Text Appended to Document"
+
     else:
         result = {"success": False, "message": f"Unknown action: {action}"}
         action_name = "Unknown Action"
@@ -437,6 +523,125 @@ def process_planner_output(plan: dict, user_email: str):
             return {"response_type": "RESULT", "response": response}
         else:
             return {"response_type": "RESULT", "response": result.get('message', 'No files found')}
+
+    # Handle Tasks Create - with approval
+    if action == "TASKS_CREATE":
+        message = f"Ready to create task: '{plan.get('title')}'"
+        if plan.get('due_date'):
+            message += f" (Due: {plan.get('due_date')})"
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "TASKS_CREATE",
+            "message": message,
+            "params": {
+                "title": plan.get("title"),
+                "notes": plan.get("notes", ""),
+                "due_date": plan.get("due_date")
+            }
+        }
+
+    # Handle Tasks List - execute immediately
+    if action == "TASKS_LIST":
+        result = execute_action("TASKS_LIST", {"max_results": plan.get("max_results", 10)}, user_email)
+
+        if result.get('success') and 'details' in result:
+            response = f"{result['message']}\n\n"
+            for task in result['details']:
+                title = task.get('title', 'No Title')
+                status = task.get('status', 'needsAction')
+                due = task.get('due', 'No due date')
+                response += f"✓ {title}\nStatus: {status}\nDue: {due}\n\n"
+            return {"response_type": "RESULT", "response": response}
+        else:
+            return {"response_type": "RESULT", "response": result.get('message', 'No tasks found')}
+
+    # Handle Tasks Complete - with approval
+    if action == "TASKS_COMPLETE":
+        message = f"Ready to mark task as complete: '{plan.get('title_search')}'"
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "TASKS_COMPLETE",
+            "message": message,
+            "params": {
+                "task_id": plan.get("task_id", ""),
+                "title_search": plan.get("title_search")
+            }
+        }
+
+    # Handle Sheets Create - with approval
+    if action == "SHEETS_CREATE":
+        message = f"Ready to create spreadsheet: '{plan.get('title')}'"
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "SHEETS_CREATE",
+            "message": message,
+            "params": {
+                "title": plan.get("title")
+            }
+        }
+
+    # Handle Sheets Add Row - with approval
+    if action == "SHEETS_ADD_ROW":
+        message = f"Ready to add row to spreadsheet"
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "SHEETS_ADD_ROW",
+            "message": message,
+            "params": {
+                "sheet_id": plan.get("sheet_id"),
+                "range_name": plan.get("range_name", "Sheet1!A:Z"),
+                "values": plan.get("values", [])
+            }
+        }
+
+    # Handle Sheets Read - execute immediately
+    if action == "SHEETS_READ":
+        result = execute_action("SHEETS_READ", {
+            "sheet_id": plan.get("sheet_id"),
+            "range_name": plan.get("range_name", "Sheet1!A1:Z100")
+        }, user_email)
+
+        if result.get('success') and 'details' in result:
+            data = result['details'].get('data', [])
+            response = f"{result['message']}\n\n"
+            for row in data[:10]:
+                response += " | ".join(str(cell) for cell in row) + "\n"
+            if len(data) > 10:
+                response += f"\n... and {len(data) - 10} more rows"
+            return {"response_type": "RESULT", "response": response}
+        else:
+            return {"response_type": "RESULT", "response": result.get('message', 'Failed to read sheet')}
+
+    # Handle Docs Create - with approval
+    if action == "DOCS_CREATE":
+        message = f"Ready to create document: '{plan.get('title')}'"
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "DOCS_CREATE",
+            "message": message,
+            "params": {
+                "title": plan.get("title")
+            }
+        }
+
+    # Handle Docs Append - with approval
+    if action == "DOCS_APPEND":
+        message = f"Ready to append text to document"
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "DOCS_APPEND",
+            "message": message,
+            "params": {
+                "doc_id": plan.get("doc_id"),
+                "text": plan.get("text")
+            }
+        }
 
     # Unknown action
     return {
