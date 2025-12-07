@@ -12,7 +12,7 @@ from models.session_store import store_token # ADDED
 load_dotenv() 
 
 # ✅ Allowed tester emails
-ALLOWED_TESTERS = ["swarapawanekar@gmail.com", "other.tester@gmail.com"]
+ALLOWED_TESTERS = ["swarapawanekar@gmail.com", "krunalsahare14@gmail.com","jubipator@gmail.com","other.tester@gmail.com"]
 
 # JWT secret
 JWT_SECRET = os.getenv("SESSION_SECRET", "dev_default_key")
