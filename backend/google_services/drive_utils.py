@@ -141,6 +141,158 @@ def get_shareable_link(file_id: str, user_email: str = None):
         return {"success": False, "message": f"Failed to get shareable link: {e}"}
 
 
+def upload_file(file_name: str, file_content: bytes, mime_type: str = 'text/plain', folder_id: str = None, user_email: str = None):
+    """
+    Uploads a file to Google Drive.
+
+    :param file_name: Name of the file to create.
+    :param file_content: Binary content of the file.
+    :param mime_type: MIME type of the file (default: 'text/plain').
+    :param folder_id: Optional folder ID to upload to (default: root).
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("drive", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        from googleapiclient.http import MediaInMemoryUpload
+
+        file_metadata = {'name': file_name}
+        if folder_id:
+            file_metadata['parents'] = [folder_id]
+
+        media = MediaInMemoryUpload(file_content, mimetype=mime_type, resumable=True)
+
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, name, webViewLink'
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"File '{file_name}' uploaded successfully.",
+            "details": {
+                "file_id": file.get('id'),
+                "file_name": file.get('name'),
+                "file_link": file.get('webViewLink')
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to upload file: {e}"}
+
+
+def delete_file(file_id: str, user_email: str = None):
+    """
+    Deletes a file from Google Drive (moves to trash).
+
+    :param file_id: The ID of the file to delete.
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("drive", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        service.files().delete(fileId=file_id).execute()
+
+        return {
+            "success": True,
+            "message": f"File deleted successfully.",
+            "details": {
+                "file_id": file_id
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to delete file: {e}"}
+
+
+def rename_file(file_id: str, new_name: str, user_email: str = None):
+    """
+    Renames a file in Google Drive.
+
+    :param file_id: The ID of the file to rename.
+    :param new_name: The new name for the file.
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("drive", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        file_metadata = {'name': new_name}
+
+        updated_file = service.files().update(
+            fileId=file_id,
+            body=file_metadata,
+            fields='id, name, webViewLink'
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"File renamed to '{new_name}' successfully.",
+            "details": {
+                "file_id": updated_file.get('id'),
+                "new_name": updated_file.get('name'),
+                "file_link": updated_file.get('webViewLink')
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to rename file: {e}"}
+
+
+def share_file(file_id: str, email: str, role: str = 'reader', user_email: str = None):
+    """
+    Shares a file with a specific email address.
+
+    :param file_id: The ID of the file to share.
+    :param email: Email address to share with.
+    :param role: Permission role ('reader', 'writer', 'commenter').
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("drive", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        permission = {
+            'type': 'user',
+            'role': role,
+            'emailAddress': email
+        }
+
+        service.permissions().create(
+            fileId=file_id,
+            body=permission,
+            fields='id, emailAddress, role'
+        ).execute()
+
+        # Get file info
+        file = service.files().get(
+            fileId=file_id,
+            fields='id, name, webViewLink'
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"File '{file.get('name')}' shared with {email} as {role}.",
+            "details": {
+                "file_id": file.get('id'),
+                "file_name": file.get('name'),
+                "file_link": file.get('webViewLink'),
+                "shared_with": email,
+                "role": role
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to share file: {e}"}
+
+
 def list_files_in_folder(folder_name: str, user_email: str = None):
     """
     Lists files inside a specific folder by searching for the folder name.

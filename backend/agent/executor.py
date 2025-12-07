@@ -1,6 +1,6 @@
 # backend/agent/executor.py
 from google_services.gmail_utils import send_draft_email
-from google_services.calendar_utils import create_calendar_event, get_upcoming_events, create_instant_meet, delete_calendar_event
+from google_services.calendar_utils import create_calendar_event, get_upcoming_events, create_instant_meet, delete_calendar_event, update_calendar_event
 from google_services.drive_utils import search_drive_files
 from google_services.contacts_utils import search_contacts
 from logs.log_utils import log_execution
@@ -60,6 +60,19 @@ def execute_action(action: str, params: dict, user_email: str):
             user_email=user_email
         )
         action_name = "Calendar Event Deleted"
+
+    elif action == "CALENDAR_UPDATE":
+        result = update_calendar_event(
+            event_id=params.get('event_id'),
+            summary_search=params.get('summary_search'),
+            new_summary=params.get('new_summary'),
+            new_start_time=params.get('new_start_time'),
+            new_end_time=params.get('new_end_time'),
+            new_description=params.get('new_description'),
+            new_attendees=params.get('new_attendees'),
+            user_email=user_email
+        )
+        action_name = "Calendar Event Updated"
 
     # CONTACTS
     elif action == "CONTACTS_SEARCH":

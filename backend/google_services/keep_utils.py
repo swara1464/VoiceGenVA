@@ -130,6 +130,81 @@ def list_notes(max_results: int = 10, user_email: str = None):
         return {"success": False, "message": f"Failed to list notes: {e}"}
 
 
+def edit_note(note_id: str, new_title: str = None, new_content: str = None, user_email: str = None):
+    """
+    Edits an existing note by updating the title and/or content.
+
+    :param note_id: ID of the note to edit.
+    :param new_title: New title for the note (optional).
+    :param new_content: New content for the note (optional).
+    :param user_email: Email of the user (for token retrieval).
+    """
+    drive_service, drive_error = get_google_service("drive", "v3", user_email)
+    if drive_error:
+        return {"success": False, "message": drive_error}
+
+    docs_service, docs_error = get_google_service("docs", "v1", user_email)
+    if docs_error:
+        return {"success": False, "message": docs_error}
+
+    try:
+        # Update title if provided
+        if new_title:
+            drive_service.files().update(
+                fileId=note_id,
+                body={'name': new_title}
+            ).execute()
+
+        # Update content if provided
+        if new_content:
+            # Get current document to find end index
+            doc = docs_service.documents().get(documentId=note_id).execute()
+            doc_content = doc.get('body').get('content', [])
+            end_index = doc_content[-1].get('endIndex', 1) - 1
+
+            # Delete all existing content and insert new content
+            requests = [
+                {
+                    'deleteContentRange': {
+                        'range': {
+                            'startIndex': 1,
+                            'endIndex': end_index
+                        }
+                    }
+                },
+                {
+                    'insertText': {
+                        'location': {'index': 1},
+                        'text': new_content
+                    }
+                }
+            ]
+
+            docs_service.documents().batchUpdate(
+                documentId=note_id,
+                body={'requests': requests}
+            ).execute()
+
+        # Get updated document info
+        file_info = drive_service.files().get(
+            fileId=note_id,
+            fields='id, name, webViewLink'
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"Note '{file_info.get('name')}' updated successfully.",
+            "details": {
+                "note_id": note_id,
+                "note_title": file_info.get('name'),
+                "note_url": file_info.get('webViewLink')
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to edit note: {e}"}
+
+
 def delete_note(note_id: str, user_email: str = None):
     """
     Deletes a note (moves it to trash).

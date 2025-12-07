@@ -138,3 +138,132 @@ def get_contact_email(name_query: str, user_email: str = None):
             "message": f"Found {len(contacts)} possible matches.",
             "details": contacts
         }
+
+
+def create_contact(name: str, email: str = None, phone: str = None, user_email: str = None):
+    """
+    Creates a new contact in Google Contacts.
+    NOTE: Requires 'contacts' scope (not just contacts.readonly).
+
+    :param name: Contact's full name.
+    :param email: Contact's email address (optional).
+    :param phone: Contact's phone number (optional).
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("people", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        contact_data = {
+            'names': [{'givenName': name}]
+        }
+
+        if email:
+            contact_data['emailAddresses'] = [{'value': email}]
+
+        if phone:
+            contact_data['phoneNumbers'] = [{'value': phone}]
+
+        result = service.people().createContact(
+            body=contact_data
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"Contact '{name}' created successfully.",
+            "details": {
+                "resource_name": result.get('resourceName'),
+                "name": name,
+                "email": email,
+                "phone": phone
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to create contact: {e}"}
+
+
+def update_contact(resource_name: str, name: str = None, email: str = None, phone: str = None, user_email: str = None):
+    """
+    Updates an existing contact in Google Contacts.
+    NOTE: Requires 'contacts' scope (not just contacts.readonly).
+
+    :param resource_name: The resource name of the contact (e.g., 'people/c1234567890').
+    :param name: New name for the contact (optional).
+    :param email: New email for the contact (optional).
+    :param phone: New phone for the contact (optional).
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("people", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        # Get current contact data
+        current_contact = service.people().get(
+            resourceName=resource_name,
+            personFields='names,emailAddresses,phoneNumbers,etag'
+        ).execute()
+
+        # Build update data
+        contact_data = {
+            'etag': current_contact.get('etag'),
+            'names': current_contact.get('names', []),
+            'emailAddresses': current_contact.get('emailAddresses', []),
+            'phoneNumbers': current_contact.get('phoneNumbers', [])
+        }
+
+        # Update fields if provided
+        if name:
+            contact_data['names'] = [{'givenName': name}]
+
+        if email:
+            contact_data['emailAddresses'] = [{'value': email}]
+
+        if phone:
+            contact_data['phoneNumbers'] = [{'value': phone}]
+
+        result = service.people().updateContact(
+            resourceName=resource_name,
+            updatePersonFields='names,emailAddresses,phoneNumbers',
+            body=contact_data
+        ).execute()
+
+        return {
+            "success": True,
+            "message": f"Contact updated successfully.",
+            "details": {
+                "resource_name": result.get('resourceName')
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to update contact: {e}"}
+
+
+def delete_contact(resource_name: str, user_email: str = None):
+    """
+    Deletes a contact from Google Contacts.
+    NOTE: Requires 'contacts' scope (not just contacts.readonly).
+
+    :param resource_name: The resource name of the contact to delete (e.g., 'people/c1234567890').
+    :param user_email: Email of the user (for token retrieval).
+    """
+    service, error = get_google_service("people", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        service.people().deleteContact(resourceName=resource_name).execute()
+
+        return {
+            "success": True,
+            "message": f"Contact deleted successfully.",
+            "details": {
+                "resource_name": resource_name
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to delete contact: {e}"}

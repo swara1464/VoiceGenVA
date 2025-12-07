@@ -240,6 +240,103 @@ def get_event_meet_link(event_id: str = None, summary_search: str = None, user_e
         return {"success": False, "message": f"Failed to retrieve event: {e}"}
 
 
+def update_calendar_event(event_id: str = None, summary_search: str = None, new_summary: str = None,
+                         new_start_time: str = None, new_end_time: str = None,
+                         new_description: str = None, new_attendees: list = None, user_email: str = None):
+    """
+    Updates an existing calendar event (reschedule/edit).
+    Can find event by ID or by searching the summary.
+
+    :param event_id: Event ID to update (optional if summary_search provided)
+    :param summary_search: Search term to find event by title (optional if event_id provided)
+    :param new_summary: New title for the event
+    :param new_start_time: New start time (ISO format)
+    :param new_end_time: New end time (ISO format)
+    :param new_description: New description
+    :param new_attendees: New list of attendee emails
+    :param user_email: Email of the user (for token retrieval)
+    """
+    service, error = get_google_service("calendar", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        # Find event if only summary_search is provided
+        if not event_id and summary_search:
+            now = datetime.now().isoformat() + 'Z'
+
+            events_result = service.events().list(
+                calendarId='primary',
+                timeMin=now,
+                maxResults=50,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+
+            events = events_result.get('items', [])
+            matching_event = None
+
+            for event in events:
+                if summary_search.lower() in event.get('summary', '').lower():
+                    matching_event = event
+                    break
+
+            if not matching_event:
+                return {"success": False, "message": f"No event found matching '{summary_search}'"}
+
+            event_id = matching_event['id']
+
+        if not event_id:
+            return {"success": False, "message": "No event_id or summary_search provided"}
+
+        # Get existing event
+        event = service.events().get(calendarId='primary', eventId=event_id).execute()
+
+        # Update fields only if new values are provided
+        if new_summary:
+            event['summary'] = new_summary
+        if new_start_time:
+            event['start'] = {'dateTime': new_start_time, 'timeZone': event['start'].get('timeZone', 'UTC')}
+        if new_end_time:
+            event['end'] = {'dateTime': new_end_time, 'timeZone': event['end'].get('timeZone', 'UTC')}
+        if new_description is not None:
+            event['description'] = new_description
+        if new_attendees is not None:
+            event['attendees'] = [{'email': email} for email in new_attendees]
+
+        # Update the event
+        updated_event = service.events().update(
+            calendarId='primary',
+            eventId=event_id,
+            body=event
+        ).execute()
+
+        if user_email:
+            log_execution(user_email, "CALENDAR_UPDATE", "SUCCESS", {
+                "event_id": event_id,
+                "changes": {
+                    "summary": new_summary,
+                    "start_time": new_start_time,
+                    "end_time": new_end_time
+                }
+            })
+
+        return {
+            "success": True,
+            "message": f"Event '{updated_event.get('summary')}' updated successfully",
+            "details": {
+                "event_id": updated_event.get('id'),
+                "summary": updated_event.get('summary'),
+                "start": updated_event.get('start', {}).get('dateTime'),
+                "end": updated_event.get('end', {}).get('dateTime'),
+                "meet_link": updated_event.get('hangoutLink')
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to update event: {e}"}
+
+
 def delete_calendar_event(event_id: str = None, summary: str = None, user_email: str = None):
     """
     Deletes a calendar event by ID or title.

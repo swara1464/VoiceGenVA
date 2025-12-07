@@ -12,3 +12,4 @@ gunicorn
 pytz
 PyJWT
 dateparser
+supabase
