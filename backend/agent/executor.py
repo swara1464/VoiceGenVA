@@ -111,9 +111,6 @@ def parse_date_string_to_iso(date_string: str) -> dict:
     except Exception as e:
         return {"success": False, "error": f"Failed to parse date: {e}"}
 
-
-// In backend/agent/executor.py, starting around Line 142
-
 def process_planner_output(plan: dict, user_email: str):
     """
     Processes the JSON plan from Cohere LLM.
