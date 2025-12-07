@@ -38,18 +38,22 @@ export default function GmailPreview({ isOpen, preview, onSend, onCancel, userEm
     };
 
     try {
-      const response = await axios.post('/api/gmail/send', {
-        ...dataToSend,
-        approved: true
+      const response = await axios.post('/agent/execute', {
+        action: 'GMAIL_SEND',
+        params: {
+          ...dataToSend,
+          approved: true
+        }
       });
 
       if (response.data.success) {
         onSend(response.data);
       } else {
-        alert('Failed to send email: ' + response.data.message);
+        alert('Failed to send email: ' + (response.data.message || 'Unknown error'));
       }
     } catch (error) {
-      alert('Error sending email: ' + error.message);
+      console.error('Error sending email:', error);
+      alert('Error sending email: ' + (error.response?.data?.message || error.message));
     }
   };
 

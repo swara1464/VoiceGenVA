@@ -66,7 +66,7 @@ def execute_action(action: str, params: dict, user_email: str):
                 title=params.get('summary', 'Instant Meeting'),
                 attendees=params.get('attendees', []),
                 user_email=user_email,
-                timezone='UTC'
+                timezone='Asia/Kolkata'
             )
         else:
             result = create_calendar_event(
@@ -126,24 +126,31 @@ def execute_action(action: str, params: dict, user_email: str):
     return result
 
 def parse_date_string_to_iso(date_string: str) -> dict:
-    """Safely parses a natural language date string into ISO 8601 format."""
+    """Safely parses a natural language date string into ISO 8601 format with IST timezone."""
     try:
-        # Standardize search to UTC for API
-        base_dt = datetime.now(pytz.UTC)
-        
+        # Use IST timezone for all date operations
+        ist_tz = pytz.timezone('Asia/Kolkata')
+        base_dt = datetime.now(ist_tz)
+
         # Parse the start time using dateparser
         start_dt = dateparser.parse(
             date_string,
             settings={
                 'RELATIVE_BASE': base_dt,
-                'TIMEZONE': 'UTC', # Standardize to UTC for API
+                'TIMEZONE': 'Asia/Kolkata',  # Use IST timezone
                 'RETURN_AS_TIMEZONE_AWARE': True
             }
         )
-        
+
         if not start_dt:
             raise ValueError("Could not parse the date/time.")
-        
+
+        # Ensure timezone is IST
+        if start_dt.tzinfo is None:
+            start_dt = ist_tz.localize(start_dt)
+        elif start_dt.tzinfo != ist_tz:
+            start_dt = start_dt.astimezone(ist_tz)
+
         # Calculate a default end time (1 hour later)
         end_dt = start_dt + timedelta(hours=1)
 
@@ -279,8 +286,19 @@ def process_planner_output(plan: dict, user_email: str):
             plan["end_time"] = date_info['end_time']
 
         # Determine Preview/Approval flow
-        message_prefix = f"Ready to schedule: '{plan.get('summary')}' at {plan.get('start_time')[:16]}."
-        
+        # Format time in IST for display
+        try:
+            ist_tz = pytz.timezone('Asia/Kolkata')
+            start_dt = datetime.fromisoformat(plan.get('start_time').replace('Z', '+00:00'))
+            if start_dt.tzinfo is None:
+                start_dt = ist_tz.localize(start_dt)
+            else:
+                start_dt = start_dt.astimezone(ist_tz)
+            display_time = start_dt.strftime('%B %d at %I:%M %p IST')
+            message_prefix = f"Ready to schedule: '{plan.get('summary')}' on {display_time}."
+        except:
+            message_prefix = f"Ready to schedule: '{plan.get('summary')}'."
+
         return {
             "response_type": "APPROVAL",
             "action": "CALENDAR_CREATE",

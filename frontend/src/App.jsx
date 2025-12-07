@@ -30,6 +30,21 @@ function App() {
   const [gmailPreview, setGmailPreview] = useState(null);
   const [userEmail, setUserEmail] = useState("");
 
+  // Fetch user email on component mount
+  useEffect(() => {
+    const fetchUserEmail = async () => {
+      try {
+        const response = await axios.get('/auth/me');
+        if (response.data && response.data.email) {
+          setUserEmail(response.data.email);
+        }
+      } catch (error) {
+        console.log('Could not fetch user email:', error);
+      }
+    };
+    fetchUserEmail();
+  }, []);
+
   // --- FIX: keep input focused ---
   const inputRef = useRef(null);
   useEffect(() => {
@@ -159,9 +174,9 @@ function App() {
       console.log("📥 Received from backend:", data);
 
       if (data.response_type === "EMAIL_PREVIEW") {
-        console.log("✅ EMAIL_PREVIEW detected, opening form");
-        setEmailFormData(data.params);
-        setIsEmailFormOpen(true);
+        console.log("✅ EMAIL_PREVIEW detected, opening GmailPreview");
+        setGmailPreview(data.params);
+        setIsGmailPreviewOpen(true);
         speakText(data.message);
       } else if (data.response_type === "CALENDAR_PREVIEW") {
         setApprovalProps({
@@ -514,7 +529,7 @@ function App() {
             <Route path="/" element={<LoginPage />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/history" element={<History />} />
-            <Route path="/agent" element={agentView} />
+            <Route path="/agent" element={<VocalAgentHome />} />
           </Routes>
         </div>
       </div>

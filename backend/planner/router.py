@@ -13,6 +13,8 @@ PLANNER_SYSTEM_PROMPT = """YOU MUST RETURN ONLY VALID JSON. NO TEXT. NO EXPLANAT
 
 CRITICAL: Your response MUST be parseable by json.loads(). Do not write anything except JSON.
 
+TIMEZONE: ALL DATES AND TIMES MUST BE IN INDIAN STANDARD TIME (IST, UTC+5:30). When parsing dates like "tomorrow at 2 PM", calculate IST time.
+
 DETECT USER INTENT (MOST IMPORTANT FIRST):
 - PRIORITY #1 - Email send keywords: "send", "email", "mail", "compose", "draft", "message to" -> GMAIL_COMPOSE
   ALWAYS use GMAIL_COMPOSE for ANY email send request, even if information is incomplete
@@ -62,8 +64,8 @@ CALENDAR_CREATE (for scheduling):
   "action": "CALENDAR_CREATE",
   "summary": "Meeting Title",
   "description": "Meeting details",
-  "start_time": "2025-12-08T14:00:00Z",
-  "end_time": "2025-12-08T15:00:00Z",
+  "start_time": "2025-12-08T14:00:00+05:30",
+  "end_time": "2025-12-08T15:00:00+05:30",
   "attendees": [],
   "instant": false
 }
@@ -121,7 +123,7 @@ User: "Delete the event Daily Sync"
 {"action": "CALENDAR_DELETE", "event_id": "", "summary": "Daily Sync"}
 
 User: "Schedule a team meeting for tomorrow at 9 AM"
-{"action": "CALENDAR_CREATE", "summary": "Team Meeting", "description": "Scheduled via Vocal Agent", "start_time": "2025-12-08T09:00:00Z", "end_time": "2025-12-08T10:00:00Z", "attendees": [], "instant": false}
+{"action": "CALENDAR_CREATE", "summary": "Team Meeting", "description": "Scheduled via Vocal Agent", "start_time": "2025-12-08T09:00:00+05:30", "end_time": "2025-12-08T10:00:00+05:30", "attendees": [], "instant": false}
 
 User: "What is Swara's email?"
 {"action": "CONTACTS_SEARCH", "query": "Swara"}
