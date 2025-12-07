@@ -106,17 +106,27 @@ def planner_run():
         print("❌ No prompt provided")
         return jsonify({"response_type": "ERROR", "response": "No prompt provided"}), 400
 
-    # Step 1: Get JSON plan from Cohere LLM (with contact resolution)
-    print("📋 Step 1: Calling run_planner...")
-    plan = run_planner(prompt, user["email"])
-    print(f"📋 Planner returned: {plan}")
+    try:
+        # Step 1: Get JSON plan from Cohere LLM (with contact resolution)
+        print("📋 Step 1: Calling run_planner...")
+        plan = run_planner(prompt, user["email"])
+        print(f"📋 Planner returned: {plan}")
 
-    # Step 2: Process the plan (no parsing, just read JSON)
-    print("⚙️ Step 2: Processing planner output...")
-    execution_result = process_planner_output(plan, user["email"])
-    print(f"✅ Execution result: {execution_result}")
+        # Step 2: Process the plan (no parsing, just read JSON)
+        print("⚙️ Step 2: Processing planner output...")
+        execution_result = process_planner_output(plan, user["email"])
+        print(f"✅ Execution result: {execution_result}")
 
-    return jsonify(execution_result)
+        return jsonify(execution_result)
+
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR in planner_run: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "response_type": "ERROR",
+            "response": f"An error occurred: {str(e)}"
+        })
 
 
 # Final execution endpoint

@@ -153,10 +153,13 @@ function App() {
     setInput("");
 
     try {
+      console.log("🚀 Sending to /planner/run:", userMessage);
       const res = await axios.post("/planner/run", { prompt: userMessage });
       const data = res.data;
+      console.log("📥 Received from backend:", data);
 
       if (data.response_type === "EMAIL_PREVIEW") {
+        console.log("✅ EMAIL_PREVIEW detected, opening form");
         setEmailFormData(data.params);
         setIsEmailFormOpen(true);
         speakText(data.message);

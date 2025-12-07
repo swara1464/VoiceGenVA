@@ -194,7 +194,24 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
             print(f"✅ LLM returned valid JSON: {plan}")
             print(f"✅ Action detected: {plan.get('action')}")
 
-            # Trust LLM output completely - no validation
+            # FAILSAFE: If user clearly wants email but LLM missed it, force GMAIL_COMPOSE
+            email_keywords = ["send", "email", "mail", "compose", "draft", "message", "write to"]
+            user_wants_email = any(keyword in user_input.lower() for keyword in email_keywords)
+
+            if user_wants_email and plan.get('action') != 'GMAIL_COMPOSE':
+                print(f"⚠️ FAILSAFE: User wants email but LLM returned {plan.get('action')}. Forcing GMAIL_COMPOSE.")
+                # Extract recipient from input if possible
+                import re
+                to_match = re.search(r'(?:to|for)\s+([a-zA-Z]+)', user_input, re.IGNORECASE)
+                recipient = to_match.group(1) if to_match else "recipient"
+
+                return {
+                    "action": "GMAIL_COMPOSE",
+                    "to": [f"{recipient}@placeholder.com"],
+                    "subject": "Message",
+                    "body": f"User request: {user_input}\n\nPlease edit this message as needed."
+                }
+
             return plan
 
         except json.JSONDecodeError as e:
@@ -202,15 +219,21 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
             print(f"❌ Raw LLM response: {response_text[:500]}")
 
             # Check if this is an email request that failed to parse
-            email_keywords = ["email", "send", "mail", "compose", "draft", "message to"]
+            email_keywords = ["email", "send", "mail", "compose", "draft", "message"]
             is_email_request = any(keyword in user_input.lower() for keyword in email_keywords)
 
             if is_email_request:
-                print("⚠️ Email request detected but JSON failed to parse - returning error")
-                # Don't fallback to small talk for email requests
+                print("⚠️ Email request detected but JSON failed to parse - FORCING GMAIL_COMPOSE")
+                # Force email composition instead of error
+                import re
+                to_match = re.search(r'(?:to|for)\s+([a-zA-Z]+)', user_input, re.IGNORECASE)
+                recipient = to_match.group(1) if to_match else "recipient"
+
                 return {
-                    "action": "ERROR",
-                    "message": f"I detected you want to send an email, but I couldn't process it properly. Please try again with format: 'Send email to [email] subject [subject] saying [message]'"
+                    "action": "GMAIL_COMPOSE",
+                    "to": [f"{recipient}@placeholder.com"],
+                    "subject": "Message",
+                    "body": f"User request: {user_input}\n\nPlease edit this message as needed."
                 }
 
             # Only use fallback for genuine small talk
