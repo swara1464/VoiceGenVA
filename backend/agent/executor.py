@@ -109,6 +109,17 @@ def execute_action(action: str, params: dict, user_email: str):
         result = search_contacts(params.get('query'), user_email)
         action_name = "Contacts Searched"
 
+    elif action == "CONTACTS_CREATE":
+        from google_services.contacts_utils import create_contact
+        result = create_contact(
+            given_name=params.get('given_name'),
+            family_name=params.get('family_name'),
+            email=params.get('email'),
+            phone=params.get('phone'),
+            user_email=user_email
+        )
+        action_name = "Contact Created"
+
     # DRIVE (already working, minimal changes)
     elif action == "DRIVE_SEARCH":
         result = search_drive_files(params.get('query'), user_email)
@@ -340,6 +351,49 @@ def process_planner_output(plan: dict, user_email: str):
         else:
             return {"response_type": "ERROR", "response": result.get('message', 'Failed to delete event')}
 
+    # Handle Calendar Update/Reschedule - with approval
+    if action == "CALENDAR_UPDATE":
+        # Parse new times if provided
+        new_start_time = plan.get("new_start_time")
+        new_end_time = plan.get("new_end_time")
+
+        if new_start_time and not new_end_time:
+            # If only start time provided, calculate end time
+            date_info = parse_date_string_to_iso(new_start_time)
+            if date_info['success']:
+                new_start_time = date_info['start_time']
+                new_end_time = date_info['end_time']
+
+        try:
+            ist_tz = pytz.timezone('Asia/Kolkata')
+            if new_start_time:
+                start_dt = datetime.fromisoformat(new_start_time.replace('Z', '+00:00'))
+                if start_dt.tzinfo is None:
+                    start_dt = ist_tz.localize(start_dt)
+                else:
+                    start_dt = start_dt.astimezone(ist_tz)
+                display_time = start_dt.strftime('%B %d at %I:%M %p IST')
+                message_prefix = f"Ready to reschedule '{plan.get('summary_search')}' to {display_time}."
+            else:
+                message_prefix = f"Ready to update event '{plan.get('summary_search')}'."
+        except:
+            message_prefix = f"Ready to update event '{plan.get('summary_search')}'."
+
+        return {
+            "response_type": "APPROVAL",
+            "action": "CALENDAR_UPDATE",
+            "message": message_prefix,
+            "params": {
+                "event_id": plan.get("event_id", ""),
+                "summary_search": plan.get("summary_search"),
+                "new_summary": plan.get("new_summary"),
+                "new_start_time": new_start_time,
+                "new_end_time": new_end_time,
+                "new_description": plan.get("new_description"),
+                "new_attendees": plan.get("new_attendees", [])
+            }
+        }
+
     # Handle Contacts Search - execute immediately
     if action == "CONTACTS_SEARCH":
         result = execute_action("CONTACTS_SEARCH", {"query": plan.get("query")}, user_email)
@@ -354,7 +408,22 @@ def process_planner_output(plan: dict, user_email: str):
             return {"response_type": "RESULT", "response": response}
         else:
             return {"response_type": "RESULT", "response": result.get('message', 'No contacts found')}
-    
+
+    # Handle Contacts Create - with approval
+    if action == "CONTACTS_CREATE":
+        message = f"Ready to add contact: {plan.get('given_name', '')} {plan.get('family_name', '')} ({plan.get('email', 'No email')})."
+        return {
+            "response_type": "APPROVAL",
+            "action": "CONTACTS_CREATE",
+            "message": message,
+            "params": {
+                "given_name": plan.get("given_name"),
+                "family_name": plan.get("family_name"),
+                "email": plan.get("email"),
+                "phone": plan.get("phone")
+            }
+        }
+
     # Handle Drive Search - execute immediately
     if action == "DRIVE_SEARCH":
         result = execute_action("DRIVE_SEARCH", {"query": plan.get("query")}, user_email)

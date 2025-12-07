@@ -140,12 +140,14 @@ def get_contact_email(name_query: str, user_email: str = None):
         }
 
 
-def create_contact(name: str, email: str = None, phone: str = None, user_email: str = None):
+def create_contact(given_name: str = None, family_name: str = None, name: str = None, email: str = None, phone: str = None, user_email: str = None):
     """
     Creates a new contact in Google Contacts.
     NOTE: Requires 'contacts' scope (not just contacts.readonly).
 
-    :param name: Contact's full name.
+    :param given_name: Contact's first name.
+    :param family_name: Contact's last name.
+    :param name: Contact's full name (alternative to given_name/family_name).
     :param email: Contact's email address (optional).
     :param phone: Contact's phone number (optional).
     :param user_email: Email of the user (for token retrieval).
@@ -155,8 +157,17 @@ def create_contact(name: str, email: str = None, phone: str = None, user_email: 
         return {"success": False, "message": error}
 
     try:
+        # Build name structure
+        name_obj = {}
+        if given_name:
+            name_obj['givenName'] = given_name
+        if family_name:
+            name_obj['familyName'] = family_name
+        if name and not given_name and not family_name:
+            name_obj['givenName'] = name
+
         contact_data = {
-            'names': [{'givenName': name}]
+            'names': [name_obj]
         }
 
         if email:
@@ -169,12 +180,14 @@ def create_contact(name: str, email: str = None, phone: str = None, user_email: 
             body=contact_data
         ).execute()
 
+        full_name = f"{given_name or ''} {family_name or ''}".strip() or name or "New Contact"
+
         return {
             "success": True,
-            "message": f"Contact '{name}' created successfully.",
+            "message": f"Contact '{full_name}' created successfully.",
             "details": {
                 "resource_name": result.get('resourceName'),
-                "name": name,
+                "name": full_name,
                 "email": email,
                 "phone": phone
             }

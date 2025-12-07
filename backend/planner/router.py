@@ -24,7 +24,9 @@ DETECT USER INTENT (MOST IMPORTANT FIRST):
 - Calendar keywords: "schedule", "meeting", "appointment", "calendar", "create event" -> CALENDAR_CREATE
 - Calendar list: "list events", "upcoming events", "my events" -> CALENDAR_LIST
 - Calendar delete: "delete event", "remove event", "cancel event" -> CALENDAR_DELETE
+- Calendar update: "modify event", "reschedule", "change event", "update event" -> CALENDAR_UPDATE
 - Contact keywords: "what is", "email", "phone number", "contact" -> CONTACTS_SEARCH
+- Contact create: "add contact", "create contact", "new contact" -> CONTACTS_CREATE
 - Drive keywords: "search drive", "find file", "look for", "my documents" -> DRIVE_SEARCH
 - Small talk: "hi", "hello", "how are you", "thanks", "goodbye" -> SMALL_TALK
 
@@ -79,14 +81,35 @@ CALENDAR_LIST (for viewing events):
 CALENDAR_DELETE (for deleting events):
 {
   "action": "CALENDAR_DELETE",
-  "event_id": "event_id_here",
+  "event_id": "",
   "summary": "event title to find"
+}
+
+CALENDAR_UPDATE (for modifying/rescheduling events):
+{
+  "action": "CALENDAR_UPDATE",
+  "event_id": "",
+  "summary_search": "event title to find",
+  "new_summary": "",
+  "new_start_time": "2025-12-10T10:00:00+05:30",
+  "new_end_time": "2025-12-10T11:00:00+05:30",
+  "new_description": "",
+  "new_attendees": []
 }
 
 CONTACTS_SEARCH (for finding contacts):
 {
   "action": "CONTACTS_SEARCH",
   "query": "person name"
+}
+
+CONTACTS_CREATE (for creating new contacts):
+{
+  "action": "CONTACTS_CREATE",
+  "given_name": "John",
+  "family_name": "Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890"
 }
 
 DRIVE_SEARCH (for finding files):
