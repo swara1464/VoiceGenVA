@@ -134,7 +134,12 @@ def process_planner_output(plan: dict, user_email: str):
 
     # Handle Gmail - show preview before sending
     if action == "GMAIL_COMPOSE":
-        return {
+        print(f"📧 GMAIL_COMPOSE detected")
+        print(f"📧 To: {plan.get('to')}")
+        print(f"📧 Subject: {plan.get('subject')}")
+        print(f"📧 Body preview: {plan.get('body', '')[:100]}")
+
+        result = {
             "response_type": "EMAIL_PREVIEW",
             "action": "GMAIL_SEND",
             "message": "Please review your email before sending.",
@@ -146,6 +151,8 @@ def process_planner_output(plan: dict, user_email: str):
                 "body": plan.get("body", "")
             }
         }
+        print(f"✅ Returning EMAIL_PREVIEW: {result}")
+        return result
 
     # Handle Calendar - apply date parsing
     if action == "CALENDAR_CREATE":

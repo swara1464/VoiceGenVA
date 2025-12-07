@@ -96,16 +96,25 @@ def planner_run():
     prompt = data.get("prompt", "")
     user = get_user_from_jwt()
 
+    print(f"🌐 /planner/run called with prompt: {prompt}")
+    print(f"👤 User: {user.get('email') if user else 'None'}")
+
     if not user:
+        print("❌ User not logged in")
         return jsonify({"response_type": "ERROR", "response": "User not logged in"}), 401
     if not prompt:
+        print("❌ No prompt provided")
         return jsonify({"response_type": "ERROR", "response": "No prompt provided"}), 400
 
     # Step 1: Get JSON plan from Cohere LLM (with contact resolution)
+    print("📋 Step 1: Calling run_planner...")
     plan = run_planner(prompt, user["email"])
+    print(f"📋 Planner returned: {plan}")
 
     # Step 2: Process the plan (no parsing, just read JSON)
+    print("⚙️ Step 2: Processing planner output...")
     execution_result = process_planner_output(plan, user["email"])
+    print(f"✅ Execution result: {execution_result}")
 
     return jsonify(execution_result)
 

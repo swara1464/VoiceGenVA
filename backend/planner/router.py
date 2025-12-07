@@ -13,8 +13,9 @@ PLANNER_SYSTEM_PROMPT = """YOU MUST RETURN ONLY VALID JSON. NO TEXT. NO EXPLANAT
 
 CRITICAL: Your response MUST be parseable by json.loads(). Do not write anything except JSON.
 
-DETECT USER INTENT:
-- Email keywords: "send email", "email to", "mail to", "compose", "draft" -> GMAIL_COMPOSE
+DETECT USER INTENT (MOST IMPORTANT FIRST):
+- PRIORITY #1 - Email keywords: "send", "email", "mail", "compose", "draft", "message to" -> GMAIL_COMPOSE
+  ALWAYS use GMAIL_COMPOSE for ANY email request, even if information is incomplete
 - Calendar keywords: "schedule", "meeting", "appointment", "calendar", "create event" -> CALENDAR_CREATE
 - Calendar list: "list events", "upcoming events", "my events" -> CALENDAR_LIST
 - Calendar delete: "delete event", "remove event", "cancel event" -> CALENDAR_DELETE
@@ -76,15 +77,15 @@ SMALL_TALK (only for greetings/casual chat):
   "response": "Your response"
 }
 
-STRICT RULES:
-1. ANY email request MUST use GMAIL_COMPOSE (never SMALL_TALK)
-2. If user mentions a name without email, use "name@placeholder.com" for to field
-3. Always generate complete subject and body for emails
-4. Parse dates like "tomorrow", "next Monday" to ISO format
-5. For "instant meeting" or "meeting now", set instant: true
-6. For delete event, extract event title into "summary" field
-7. For drive search, extract the KEY TERM (e.g., "Swara's documents" -> "Swara", "project report" -> "project report")
-8. Return ONLY the JSON object, nothing else
+STRICT RULES (NEVER BREAK THESE):
+1. **CRITICAL EMAIL RULE**: ANY email/send/mail/compose/draft request MUST ALWAYS use GMAIL_COMPOSE action. NEVER use SMALL_TALK for emails.
+2. For emails: If user mentions name without email, use "name@placeholder.com" for to field
+3. For emails: Always generate complete subject and body, even if user only provides partial info
+4. For calendar: Parse dates like "tomorrow", "next Monday" to ISO format
+5. For calendar: "instant meeting" or "meeting now" sets instant: true
+6. For calendar delete: Extract event title into "summary" field
+7. For drive: Extract KEY TERM (e.g., "Swara's documents" -> "Swara", "DevOps project" -> "DevOps")
+8. Return ONLY JSON - no markdown, no text, no explanations
 
 EXAMPLES:
 
@@ -146,7 +147,10 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
     """
     Sends user input to Cohere and returns structured JSON plan.
     """
+    print(f"🎯 PLANNER CALLED with input: {user_input}")
+
     if not COHERE_API_KEY:
+        print("❌ No Cohere API key")
         return {
             "action": "ERROR",
             "message": "Cohere API key not configured"
@@ -155,6 +159,7 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
     # Use system message for better instruction following
     try:
         co = cohere.Client(COHERE_API_KEY)
+        print("📡 Calling Cohere API...")
         response = co.chat(
             model='command-a-03-2025',
             message=f"User request: {user_input}\n\nRespond with ONLY valid JSON:",
@@ -163,7 +168,10 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
             temperature=0.2,
         )
 
+        print(f"📥 Received response from Cohere")
+
         if not response.text:
+            print("❌ Empty response from LLM")
             return {
                 "action": "ERROR",
                 "message": "Empty response from LLM"
@@ -171,6 +179,7 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
 
         # Clean response
         response_text = response.text.strip()
+        print(f"📝 Raw response (first 200 chars): {response_text[:200]}")
 
         # Remove markdown code blocks if present
         if response_text.startswith("```"):
@@ -182,7 +191,8 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
         # Parse JSON
         try:
             plan = json.loads(response_text)
-            print(f"✓ LLM returned valid JSON: {plan}")
+            print(f"✅ LLM returned valid JSON: {plan}")
+            print(f"✅ Action detected: {plan.get('action')}")
 
             # Trust LLM output completely - no validation
             return plan
@@ -196,6 +206,7 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
             is_email_request = any(keyword in user_input.lower() for keyword in email_keywords)
 
             if is_email_request:
+                print("⚠️ Email request detected but JSON failed to parse - returning error")
                 # Don't fallback to small talk for email requests
                 return {
                     "action": "ERROR",
@@ -203,6 +214,7 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
                 }
 
             # Only use fallback for genuine small talk
+            print("💬 Using small talk fallback")
             fallback_response = call_llm_for_small_talk(user_input)
             return {
                 "action": "SMALL_TALK",
@@ -210,7 +222,9 @@ def run_planner(user_input: str, user_email: str = None) -> dict:
             }
 
     except Exception as e:
-        print(f"Error calling Cohere: {e}")
+        print(f"❌ Error calling Cohere: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "action": "ERROR",
             "message": f"Error calling LLM: {str(e)}"

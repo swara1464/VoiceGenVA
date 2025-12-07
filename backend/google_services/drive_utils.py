@@ -144,6 +144,7 @@ def get_shareable_link(file_id: str, user_email: str = None):
 def list_files_in_folder(folder_name: str, user_email: str = None):
     """
     Lists files inside a specific folder by searching for the folder name.
+    Also searches for files if folder not found.
 
     :param folder_name: Name of the folder to search for.
     :param user_email: Email of the user (for token retrieval).
@@ -158,6 +159,7 @@ def list_files_in_folder(folder_name: str, user_email: str = None):
         if not escaped_folder_name:
             return {"success": False, "message": "Invalid folder name."}
 
+        # First try to find a folder
         folder_query = f"name contains '{escaped_folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
 
         folder_results = service.files().list(
@@ -168,45 +170,46 @@ def list_files_in_folder(folder_name: str, user_email: str = None):
 
         folders = folder_results.get('files', [])
 
-        if not folders:
-            return {"success": False, "message": f"No folder found matching '{folder_name}'."}
+        if folders:
+            # Use the first matching folder
+            folder_id = folders[0]['id']
+            folder_actual_name = folders[0]['name']
 
-        # Use the first matching folder
-        folder_id = folders[0]['id']
-        folder_actual_name = folders[0]['name']
+            # Now list files in that folder
+            files_query = f"'{folder_id}' in parents and trashed = false"
 
-        # Now list files in that folder
-        files_query = f"'{folder_id}' in parents and trashed = false"
+            files_results = service.files().list(
+                q=files_query,
+                pageSize=50,
+                fields="files(id, name, webViewLink, mimeType, modifiedTime)",
+                orderBy="modifiedTime desc"
+            ).execute()
 
-        files_results = service.files().list(
-            q=files_query,
-            pageSize=50,
-            fields="files(id, name, webViewLink, mimeType, modifiedTime)",
-            orderBy="modifiedTime desc"
-        ).execute()
+            files = files_results.get('files', [])
 
-        files = files_results.get('files', [])
+            if not files:
+                return {"success": False, "message": f"No files found in folder '{folder_actual_name}'."}
 
-        if not files:
-            return {"success": False, "message": f"No files found in folder '{folder_actual_name}'."}
+            file_list = [{
+                "id": file['id'],
+                "name": file['name'],
+                "link": file.get('webViewLink', ''),
+                "mimeType": file.get('mimeType', ''),
+                "modified": file.get('modifiedTime', '')
+            } for file in files]
 
-        file_list = [{
-            "id": file['id'],
-            "name": file['name'],
-            "link": file.get('webViewLink', ''),
-            "mimeType": file.get('mimeType', ''),
-            "modified": file.get('modifiedTime', '')
-        } for file in files]
-
-        return {
-            "success": True,
-            "message": f"Found {len(file_list)} files in folder '{folder_actual_name}'.",
-            "details": {
-                "folder_name": folder_actual_name,
-                "folder_id": folder_id,
-                "files": file_list
+            return {
+                "success": True,
+                "message": f"Found {len(file_list)} files in folder '{folder_actual_name}'.",
+                "details": {
+                    "folder_name": folder_actual_name,
+                    "folder_id": folder_id,
+                    "files": file_list
+                }
             }
-        }
+        else:
+            # No folder found, search for files instead
+            return search_drive_files(folder_name, user_email)
 
     except Exception as e:
         return {"success": False, "message": f"Failed to list files in folder: {e}"}
