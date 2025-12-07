@@ -1,5 +1,5 @@
 # backend/agent/executor.py
-from google_services.gmail_utils import send_draft_email
+from google_services.gmail_utils import send_draft_email, search_inbox, read_email, list_unread_emails, download_attachment
 from google_services.calendar_utils import create_calendar_event, get_upcoming_events, create_instant_meet, delete_calendar_event, update_calendar_event
 from google_services.drive_utils import search_drive_files
 from google_services.contacts_utils import search_contacts
@@ -28,6 +28,36 @@ def execute_action(action: str, params: dict, user_email: str):
             approved=params.get('approved', False)
         )
         action_name = "Email Sent"
+
+    elif action == "GMAIL_SEARCH":
+        result = search_inbox(
+            query=params.get('query', ''),
+            max_results=params.get('max_results', 10),
+            user_email=user_email
+        )
+        action_name = "Inbox Searched"
+
+    elif action == "GMAIL_READ":
+        result = read_email(
+            message_id=params.get('message_id'),
+            user_email=user_email
+        )
+        action_name = "Email Read"
+
+    elif action == "GMAIL_LIST_UNREAD":
+        result = list_unread_emails(
+            max_results=params.get('max_results', 10),
+            user_email=user_email
+        )
+        action_name = "Unread Emails Listed"
+
+    elif action == "GMAIL_DOWNLOAD_ATTACHMENT":
+        result = download_attachment(
+            message_id=params.get('message_id'),
+            attachment_id=params.get('attachment_id'),
+            user_email=user_email
+        )
+        action_name = "Attachment Downloaded"
 
     # CALENDAR
     elif action == "CALENDAR_CREATE":
@@ -166,6 +196,73 @@ def process_planner_output(plan: dict, user_email: str):
         }
         print(f"✅ Returning EMAIL_PREVIEW: {result}")
         return result
+
+    # Handle Gmail Search - execute immediately
+    if action == "GMAIL_SEARCH":
+        result = execute_action("GMAIL_SEARCH", {
+            "query": plan.get("query", ""),
+            "max_results": plan.get("max_results", 10)
+        }, user_email)
+
+        if result.get('success') and 'emails' in result:
+            if not result['emails']:
+                return {"response_type": "RESULT", "response": result.get('message', 'No emails found')}
+
+            response = f"{result['message']}\n\n"
+            for email in result['emails']:
+                response += f"📧 From: {email.get('from', 'Unknown')}\n"
+                response += f"📨 Subject: {email.get('subject', '(No Subject)')}\n"
+                response += f"📅 Date: {email.get('date', 'Unknown')}\n"
+                response += f"💬 {email.get('snippet', '')[:100]}...\n"
+                response += f"ID: {email.get('id')}\n\n"
+            return {"response_type": "RESULT", "response": response}
+        else:
+            return {"response_type": "RESULT", "response": result.get('message', 'Search failed')}
+
+    # Handle Gmail List Unread - execute immediately
+    if action == "GMAIL_LIST_UNREAD":
+        result = execute_action("GMAIL_LIST_UNREAD", {
+            "max_results": plan.get("max_results", 10)
+        }, user_email)
+
+        if result.get('success') and 'emails' in result:
+            if not result['emails']:
+                return {"response_type": "RESULT", "response": "You have no unread emails! 🎉"}
+
+            response = f"{result['message']}\n\n"
+            for email in result['emails']:
+                response += f"📧 From: {email.get('from', 'Unknown')}\n"
+                response += f"📨 Subject: {email.get('subject', '(No Subject)')}\n"
+                response += f"📅 Date: {email.get('date', 'Unknown')}\n"
+                response += f"💬 {email.get('snippet', '')[:100]}...\n"
+                response += f"ID: {email.get('id')}\n\n"
+            return {"response_type": "RESULT", "response": response}
+        else:
+            return {"response_type": "RESULT", "response": result.get('message', 'Failed to retrieve unread emails')}
+
+    # Handle Gmail Read - execute immediately
+    if action == "GMAIL_READ":
+        result = execute_action("GMAIL_READ", {
+            "message_id": plan.get("message_id")
+        }, user_email)
+
+        if result.get('success') and 'email' in result:
+            email = result['email']
+            response = f"📧 Email Details\n\n"
+            response += f"From: {email.get('from', 'Unknown')}\n"
+            response += f"To: {email.get('to', 'Unknown')}\n"
+            response += f"Subject: {email.get('subject', '(No Subject)')}\n"
+            response += f"Date: {email.get('date', 'Unknown')}\n\n"
+            response += f"Body:\n{email.get('body', 'No body content')}\n\n"
+
+            if email.get('attachments'):
+                response += f"Attachments ({len(email['attachments'])}):\n"
+                for att in email['attachments']:
+                    response += f"  📎 {att['filename']} ({att['size']} bytes)\n"
+
+            return {"response_type": "RESULT", "response": response}
+        else:
+            return {"response_type": "RESULT", "response": result.get('message', 'Failed to read email')}
 
     # Handle Calendar - apply date parsing
     if action == "CALENDAR_CREATE":

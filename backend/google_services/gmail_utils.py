@@ -114,3 +114,167 @@ def send_draft_email(to: str, subject: str, body: str, cc: str = None, bcc: str 
         }
     except Exception as e:
         return {"success": False, "message": f"Failed to send email: {e}"}
+
+
+def search_inbox(query: str, max_results: int = 10, user_email=None):
+    """
+    Search for emails in the user's inbox using a query string.
+
+    :param query: Search query (e.g., "from:someone@example.com", "subject:meeting", "is:unread")
+    :param max_results: Maximum number of results to return
+    :param user_email: Email of the user (for token retrieval)
+    :return: Dictionary with success status and list of email summaries
+    """
+    service, error = get_google_service("gmail", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        results = service.users().messages().list(
+            userId="me",
+            q=query,
+            maxResults=max_results
+        ).execute()
+
+        messages = results.get("messages", [])
+
+        if not messages:
+            return {
+                "success": True,
+                "message": f"No emails found matching: {query}",
+                "emails": []
+            }
+
+        email_summaries = []
+        for msg in messages:
+            msg_data = service.users().messages().get(
+                userId="me",
+                id=msg["id"],
+                format="metadata",
+                metadataHeaders=["From", "To", "Subject", "Date"]
+            ).execute()
+
+            headers = {h["name"]: h["value"] for h in msg_data.get("payload", {}).get("headers", [])}
+
+            email_summaries.append({
+                "id": msg["id"],
+                "threadId": msg.get("threadId"),
+                "from": headers.get("From", "Unknown"),
+                "to": headers.get("To", "Unknown"),
+                "subject": headers.get("Subject", "(No Subject)"),
+                "date": headers.get("Date", "Unknown"),
+                "snippet": msg_data.get("snippet", "")
+            })
+
+        return {
+            "success": True,
+            "message": f"Found {len(email_summaries)} email(s) matching: {query}",
+            "emails": email_summaries
+        }
+    except Exception as e:
+        return {"success": False, "message": f"Failed to search inbox: {e}"}
+
+
+def list_unread_emails(max_results: int = 10, user_email=None):
+    """
+    List unread emails in the user's inbox.
+
+    :param max_results: Maximum number of results to return
+    :param user_email: Email of the user (for token retrieval)
+    :return: Dictionary with success status and list of unread email summaries
+    """
+    return search_inbox("is:unread", max_results, user_email)
+
+
+def read_email(message_id: str, user_email=None):
+    """
+    Read a specific email by its message ID.
+
+    :param message_id: The ID of the message to read
+    :param user_email: Email of the user (for token retrieval)
+    :return: Dictionary with success status and email details including body
+    """
+    service, error = get_google_service("gmail", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        msg = service.users().messages().get(
+            userId="me",
+            id=message_id,
+            format="full"
+        ).execute()
+
+        headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+
+        # Extract body
+        body = ""
+        if "parts" in msg["payload"]:
+            for part in msg["payload"]["parts"]:
+                if part["mimeType"] == "text/plain":
+                    if "data" in part["body"]:
+                        body = base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8")
+                        break
+        else:
+            if "data" in msg["payload"].get("body", {}):
+                body = base64.urlsafe_b64decode(msg["payload"]["body"]["data"]).decode("utf-8")
+
+        # Check for attachments
+        attachments = []
+        if "parts" in msg["payload"]:
+            for part in msg["payload"]["parts"]:
+                if part.get("filename"):
+                    attachments.append({
+                        "filename": part["filename"],
+                        "mimeType": part["mimeType"],
+                        "size": part["body"].get("size", 0),
+                        "attachmentId": part["body"].get("attachmentId")
+                    })
+
+        return {
+            "success": True,
+            "message": "Email retrieved successfully",
+            "email": {
+                "id": msg["id"],
+                "threadId": msg.get("threadId"),
+                "from": headers.get("From", "Unknown"),
+                "to": headers.get("To", "Unknown"),
+                "subject": headers.get("Subject", "(No Subject)"),
+                "date": headers.get("Date", "Unknown"),
+                "body": body,
+                "snippet": msg.get("snippet", ""),
+                "attachments": attachments
+            }
+        }
+    except Exception as e:
+        return {"success": False, "message": f"Failed to read email: {e}"}
+
+
+def download_attachment(message_id: str, attachment_id: str, user_email=None):
+    """
+    Download an attachment from an email.
+
+    :param message_id: The ID of the message containing the attachment
+    :param attachment_id: The ID of the attachment to download
+    :param user_email: Email of the user (for token retrieval)
+    :return: Dictionary with success status and attachment data (base64 encoded)
+    """
+    service, error = get_google_service("gmail", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        attachment = service.users().messages().attachments().get(
+            userId="me",
+            messageId=message_id,
+            id=attachment_id
+        ).execute()
+
+        return {
+            "success": True,
+            "message": "Attachment downloaded successfully",
+            "data": attachment["data"],
+            "size": attachment.get("size", 0)
+        }
+    except Exception as e:
+        return {"success": False, "message": f"Failed to download attachment: {e}"}

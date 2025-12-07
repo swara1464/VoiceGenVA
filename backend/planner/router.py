@@ -14,8 +14,11 @@ PLANNER_SYSTEM_PROMPT = """YOU MUST RETURN ONLY VALID JSON. NO TEXT. NO EXPLANAT
 CRITICAL: Your response MUST be parseable by json.loads(). Do not write anything except JSON.
 
 DETECT USER INTENT (MOST IMPORTANT FIRST):
-- PRIORITY #1 - Email keywords: "send", "email", "mail", "compose", "draft", "message to" -> GMAIL_COMPOSE
-  ALWAYS use GMAIL_COMPOSE for ANY email request, even if information is incomplete
+- PRIORITY #1 - Email send keywords: "send", "email", "mail", "compose", "draft", "message to" -> GMAIL_COMPOSE
+  ALWAYS use GMAIL_COMPOSE for ANY email send request, even if information is incomplete
+- Email search: "search email", "find email", "search inbox", "emails from" -> GMAIL_SEARCH
+- Email read: "read email", "show email", "open email" (requires message_id) -> GMAIL_READ
+- Email unread: "unread emails", "list unread", "show unread" -> GMAIL_LIST_UNREAD
 - Calendar keywords: "schedule", "meeting", "appointment", "calendar", "create event" -> CALENDAR_CREATE
 - Calendar list: "list events", "upcoming events", "my events" -> CALENDAR_LIST
 - Calendar delete: "delete event", "remove event", "cancel event" -> CALENDAR_DELETE
@@ -25,7 +28,7 @@ DETECT USER INTENT (MOST IMPORTANT FIRST):
 
 JSON OUTPUT FORMATS (COPY EXACTLY):
 
-GMAIL_COMPOSE (for any email request):
+GMAIL_COMPOSE (for sending email):
 {
   "action": "GMAIL_COMPOSE",
   "to": ["recipient@email.com"],
@@ -33,6 +36,25 @@ GMAIL_COMPOSE (for any email request):
   "bcc": [],
   "subject": "Email Subject",
   "body": "Email body with greeting and signature"
+}
+
+GMAIL_SEARCH (for searching inbox):
+{
+  "action": "GMAIL_SEARCH",
+  "query": "search term or Gmail query syntax",
+  "max_results": 10
+}
+
+GMAIL_READ (for reading specific email):
+{
+  "action": "GMAIL_READ",
+  "message_id": "message_id_here"
+}
+
+GMAIL_LIST_UNREAD (for listing unread emails):
+{
+  "action": "GMAIL_LIST_UNREAD",
+  "max_results": 10
 }
 
 CALENDAR_CREATE (for scheduling):
@@ -112,6 +134,15 @@ User: "Hey agent search Drive for Swara's documents"
 
 User: "hi"
 {"action": "SMALL_TALK", "response": "Hello! How can I help you today?"}
+
+User: "Search my inbox for emails from john"
+{"action": "GMAIL_SEARCH", "query": "from:john", "max_results": 10}
+
+User: "Show me unread emails"
+{"action": "GMAIL_LIST_UNREAD", "max_results": 10}
+
+User: "Find emails about project update"
+{"action": "GMAIL_SEARCH", "query": "project update", "max_results": 10}
 
 REMEMBER: ONLY JSON OUTPUT. NO OTHER TEXT."""
 

@@ -6,16 +6,16 @@ from supabase import create_client, Client
 
 load_dotenv()
 
-# Supabase credentials
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
-SUPABASE_KEY = os.getenv("VITE_SUPABASE_ANON_KEY")
+# Supabase credentials - Using Service Role Key for server-side operations
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")  # This is the service_role key
 
 # Initialize Supabase client
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("❌ CRITICAL: Supabase credentials not found in environment variables")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-print(f"✅ Supabase client initialized successfully")
+print(f"✅ Supabase client initialized successfully with service role")
 
 
 def init_db():
