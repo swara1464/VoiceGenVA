@@ -21,21 +21,35 @@ DETECT USER INTENT (MOST IMPORTANT FIRST):
 - Email search: "search email", "find email", "search inbox", "emails from" -> GMAIL_SEARCH
 - Email read: "read email", "show email", "open email" (requires message_id) -> GMAIL_READ
 - Email unread: "unread emails", "list unread", "show unread" -> GMAIL_LIST_UNREAD
+- Email update: "mark as read", "mark as unread", "archive email", "star email" -> GMAIL_UPDATE
+- Email delete: "delete email", "trash email", "remove email" -> GMAIL_DELETE
 - Calendar keywords: "schedule", "meeting", "appointment", "calendar", "create event" -> CALENDAR_CREATE
 - Calendar list: "list events", "upcoming events", "my events" -> CALENDAR_LIST
 - Calendar delete: "delete event", "remove event", "cancel event" -> CALENDAR_DELETE
 - Calendar update: "modify event", "reschedule", "change event", "update event" -> CALENDAR_UPDATE
 - Contact keywords: "what is", "email", "phone number", "contact" -> CONTACTS_SEARCH
 - Contact create: "add contact", "create contact", "new contact" -> CONTACTS_CREATE
+- Contact update: "update contact", "change contact", "edit contact" -> CONTACTS_UPDATE
+- Contact delete: "delete contact", "remove contact" -> CONTACTS_DELETE
 - Drive keywords: "search drive", "find file", "look for", "my documents" -> DRIVE_SEARCH
+- Drive upload: "upload file", "create file", "add file to drive" -> DRIVE_CREATE
+- Drive rename: "rename file", "change file name" -> DRIVE_UPDATE
+- Drive delete: "delete file", "remove file from drive" -> DRIVE_DELETE
 - Task create: "create task", "add task", "new task", "remind me to" -> TASKS_CREATE
 - Task list: "list tasks", "show tasks", "my tasks" -> TASKS_LIST
 - Task complete: "mark task complete", "complete task", "finish task" -> TASKS_COMPLETE
+- Task update: "update task", "edit task", "change task" -> TASKS_UPDATE
+- Task delete: "delete task", "remove task" -> TASKS_DELETE
 - Sheets create: "create spreadsheet", "new spreadsheet", "make a sheet" -> SHEETS_CREATE
 - Sheets add row: "add row to sheet", "append to spreadsheet" -> SHEETS_ADD_ROW
 - Sheets read: "read sheet", "get sheet data", "show spreadsheet" -> SHEETS_READ
+- Sheets update: "update cell", "change cell", "modify spreadsheet" -> SHEETS_UPDATE
+- Sheets delete: "delete spreadsheet", "remove spreadsheet" -> SHEETS_DELETE
 - Docs create: "create document", "new doc", "make a document" -> DOCS_CREATE
+- Docs read: "read document", "show document", "get document content" -> DOCS_READ
 - Docs append: "add to document", "append to doc", "write to document" -> DOCS_APPEND
+- Docs update: "update document", "replace text in doc", "edit document" -> DOCS_UPDATE
+- Docs delete: "delete document", "remove document" -> DOCS_DELETE
 - Small talk: "hi", "hello", "how are you", "thanks", "goodbye" -> SMALL_TALK
 
 JSON OUTPUT FORMATS (COPY EXACTLY):
@@ -67,6 +81,19 @@ GMAIL_LIST_UNREAD (for listing unread emails):
 {
   "action": "GMAIL_LIST_UNREAD",
   "max_results": 10
+}
+
+GMAIL_UPDATE (for updating email labels):
+{
+  "action": "GMAIL_UPDATE",
+  "message_id": "message_id_here",
+  "operation": "mark_read|mark_unread|archive|star"
+}
+
+GMAIL_DELETE (for deleting emails):
+{
+  "action": "GMAIL_DELETE",
+  "message_id": "message_id_here"
 }
 
 CALENDAR_CREATE (for scheduling):
@@ -120,10 +147,45 @@ CONTACTS_CREATE (for creating new contacts):
   "phone": "+1234567890"
 }
 
+CONTACTS_UPDATE (for updating contacts):
+{
+  "action": "CONTACTS_UPDATE",
+  "resource_name": "people/c1234567890",
+  "name": "New Name",
+  "email": "newemail@example.com",
+  "phone": "+9876543210"
+}
+
+CONTACTS_DELETE (for deleting contacts):
+{
+  "action": "CONTACTS_DELETE",
+  "resource_name": "people/c1234567890"
+}
+
 DRIVE_SEARCH (for finding files):
 {
   "action": "DRIVE_SEARCH",
   "query": "search keywords"
+}
+
+DRIVE_CREATE (for uploading files):
+{
+  "action": "DRIVE_CREATE",
+  "file_name": "filename.txt",
+  "content": "file content"
+}
+
+DRIVE_UPDATE (for renaming files):
+{
+  "action": "DRIVE_UPDATE",
+  "file_id": "file_id_here",
+  "new_name": "new filename"
+}
+
+DRIVE_DELETE (for deleting files):
+{
+  "action": "DRIVE_DELETE",
+  "file_id": "file_id_here"
 }
 
 TASKS_CREATE (for creating tasks):
@@ -147,6 +209,21 @@ TASKS_COMPLETE (for marking tasks complete):
   "title_search": "task title to find"
 }
 
+TASKS_UPDATE (for updating tasks):
+{
+  "action": "TASKS_UPDATE",
+  "task_id": "task_id_here",
+  "title": "new title",
+  "notes": "new notes",
+  "due_date": "2025-12-15T00:00:00Z"
+}
+
+TASKS_DELETE (for deleting tasks):
+{
+  "action": "TASKS_DELETE",
+  "task_id": "task_id_here"
+}
+
 SHEETS_CREATE (for creating spreadsheets):
 {
   "action": "SHEETS_CREATE",
@@ -168,10 +245,30 @@ SHEETS_READ (for reading spreadsheet data):
   "range_name": "Sheet1!A1:D10"
 }
 
+SHEETS_UPDATE (for updating cells):
+{
+  "action": "SHEETS_UPDATE",
+  "sheet_id": "spreadsheet_id",
+  "range_name": "Sheet1!A1",
+  "value": "new value"
+}
+
+SHEETS_DELETE (for deleting spreadsheets):
+{
+  "action": "SHEETS_DELETE",
+  "sheet_id": "spreadsheet_id"
+}
+
 DOCS_CREATE (for creating documents):
 {
   "action": "DOCS_CREATE",
   "title": "Document Title"
+}
+
+DOCS_READ (for reading document content):
+{
+  "action": "DOCS_READ",
+  "doc_id": "document_id"
 }
 
 DOCS_APPEND (for adding text to document):
@@ -179,6 +276,20 @@ DOCS_APPEND (for adding text to document):
   "action": "DOCS_APPEND",
   "doc_id": "document_id",
   "text": "Text to append"
+}
+
+DOCS_UPDATE (for replacing text in document):
+{
+  "action": "DOCS_UPDATE",
+  "doc_id": "document_id",
+  "find_text": "text to find",
+  "replace_text": "replacement text"
+}
+
+DOCS_DELETE (for deleting documents):
+{
+  "action": "DOCS_DELETE",
+  "doc_id": "document_id"
 }
 
 SMALL_TALK (only for greetings/casual chat):

@@ -1,8 +1,14 @@
 # backend/agent/executor.py
-from google_services.gmail_utils import send_draft_email, search_inbox, read_email, list_unread_emails, download_attachment
+from google_services.gmail_utils import (
+    send_draft_email, search_inbox, read_email, list_unread_emails, download_attachment,
+    mark_as_read, mark_as_unread, archive_email, star_email, delete_email
+)
 from google_services.calendar_utils import create_calendar_event, get_upcoming_events, create_instant_meet, delete_calendar_event, update_calendar_event
-from google_services.drive_utils import search_drive_files
-from google_services.contacts_utils import search_contacts
+from google_services.drive_utils import search_drive_files, upload_file, rename_file, delete_file
+from google_services.contacts_utils import search_contacts, create_contact, update_contact, delete_contact
+from google_services.tasks_utils import create_task, list_tasks, complete_task, update_task, delete_task
+from google_services.sheets_utils import create_spreadsheet, add_row_to_sheet, read_sheet_data, update_sheet_cell, delete_spreadsheet
+from google_services.docs_utils import create_document, append_to_document, read_document, replace_text_in_document, delete_document
 from logs.log_utils import log_execution
 from planner.router import call_llm_for_small_talk
 import dateparser
@@ -59,6 +65,31 @@ def execute_action(action: str, params: dict, user_email: str):
         )
         action_name = "Attachment Downloaded"
 
+    elif action == "GMAIL_UPDATE":
+        operation = params.get('operation', 'mark_read')
+        message_id = params.get('message_id')
+
+        if operation == 'mark_read':
+            result = mark_as_read(message_id, user_email)
+        elif operation == 'mark_unread':
+            result = mark_as_unread(message_id, user_email)
+        elif operation == 'archive':
+            result = archive_email(message_id, user_email)
+        elif operation == 'star':
+            result = star_email(message_id, user_email)
+        else:
+            result = {"success": False, "message": f"Unknown operation: {operation}"}
+
+        action_name = "Email Updated"
+
+    elif action == "GMAIL_DELETE":
+        result = delete_email(
+            message_id=params.get('message_id'),
+            permanent=params.get('permanent', False),
+            user_email=user_email
+        )
+        action_name = "Email Deleted"
+
     # CALENDAR
     elif action == "CALENDAR_CREATE":
         if params.get('instant'):
@@ -110,7 +141,6 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Contacts Searched"
 
     elif action == "CONTACTS_CREATE":
-        from google_services.contacts_utils import create_contact
         result = create_contact(
             given_name=params.get('given_name'),
             family_name=params.get('family_name'),
@@ -120,14 +150,55 @@ def execute_action(action: str, params: dict, user_email: str):
         )
         action_name = "Contact Created"
 
-    # DRIVE (already working, minimal changes)
+    elif action == "CONTACTS_UPDATE":
+        result = update_contact(
+            resource_name=params.get('resource_name'),
+            name=params.get('name'),
+            email=params.get('email'),
+            phone=params.get('phone'),
+            user_email=user_email
+        )
+        action_name = "Contact Updated"
+
+    elif action == "CONTACTS_DELETE":
+        result = delete_contact(
+            resource_name=params.get('resource_name'),
+            user_email=user_email
+        )
+        action_name = "Contact Deleted"
+
+    # DRIVE
     elif action == "DRIVE_SEARCH":
         result = search_drive_files(params.get('query'), user_email)
         action_name = "Drive Search Performed"
 
+    elif action == "DRIVE_CREATE":
+        content = params.get('content', '').encode('utf-8')
+        result = upload_file(
+            file_name=params.get('file_name'),
+            file_content=content,
+            mime_type=params.get('mime_type', 'text/plain'),
+            user_email=user_email
+        )
+        action_name = "File Uploaded to Drive"
+
+    elif action == "DRIVE_UPDATE":
+        result = rename_file(
+            file_id=params.get('file_id'),
+            new_name=params.get('new_name'),
+            user_email=user_email
+        )
+        action_name = "File Renamed"
+
+    elif action == "DRIVE_DELETE":
+        result = delete_file(
+            file_id=params.get('file_id'),
+            user_email=user_email
+        )
+        action_name = "File Deleted from Drive"
+
     # TASKS
     elif action == "TASKS_CREATE":
-        from google_services.tasks_utils import create_task
         result = create_task(
             title=params.get('title'),
             notes=params.get('notes', ''),
@@ -137,7 +208,6 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Task Created"
 
     elif action == "TASKS_LIST":
-        from google_services.tasks_utils import list_tasks
         result = list_tasks(
             max_results=params.get('max_results', 10),
             user_email=user_email
@@ -145,7 +215,6 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Tasks Listed"
 
     elif action == "TASKS_COMPLETE":
-        from google_services.tasks_utils import complete_task, list_tasks
         task_id = params.get('task_id')
         title_search = params.get('title_search')
 
@@ -165,9 +234,26 @@ def execute_action(action: str, params: dict, user_email: str):
             result = {"success": False, "message": f"Task '{title_search}' not found"}
             action_name = "Task Not Found"
 
+    elif action == "TASKS_UPDATE":
+        result = update_task(
+            task_id=params.get('task_id'),
+            title=params.get('title'),
+            notes=params.get('notes'),
+            due_date=params.get('due_date'),
+            status=params.get('status'),
+            user_email=user_email
+        )
+        action_name = "Task Updated"
+
+    elif action == "TASKS_DELETE":
+        result = delete_task(
+            task_id=params.get('task_id'),
+            user_email=user_email
+        )
+        action_name = "Task Deleted"
+
     # SHEETS
     elif action == "SHEETS_CREATE":
-        from google_services.sheets_utils import create_spreadsheet
         result = create_spreadsheet(
             title=params.get('title'),
             user_email=user_email
@@ -175,7 +261,6 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Spreadsheet Created"
 
     elif action == "SHEETS_ADD_ROW":
-        from google_services.sheets_utils import add_row_to_sheet
         result = add_row_to_sheet(
             sheet_id=params.get('sheet_id'),
             range_name=params.get('range_name', 'Sheet1!A:Z'),
@@ -185,7 +270,6 @@ def execute_action(action: str, params: dict, user_email: str):
         action_name = "Row Added to Sheet"
 
     elif action == "SHEETS_READ":
-        from google_services.sheets_utils import read_sheet_data
         result = read_sheet_data(
             sheet_id=params.get('sheet_id'),
             range_name=params.get('range_name', 'Sheet1!A1:Z100'),
@@ -193,23 +277,60 @@ def execute_action(action: str, params: dict, user_email: str):
         )
         action_name = "Sheet Data Read"
 
+    elif action == "SHEETS_UPDATE":
+        result = update_sheet_cell(
+            sheet_id=params.get('sheet_id'),
+            range_name=params.get('range_name'),
+            value=params.get('value'),
+            user_email=user_email
+        )
+        action_name = "Sheet Cell Updated"
+
+    elif action == "SHEETS_DELETE":
+        result = delete_spreadsheet(
+            sheet_id=params.get('sheet_id'),
+            user_email=user_email
+        )
+        action_name = "Spreadsheet Deleted"
+
     # DOCS
     elif action == "DOCS_CREATE":
-        from google_services.docs_utils import create_document
         result = create_document(
             title=params.get('title'),
             user_email=user_email
         )
         action_name = "Document Created"
 
+    elif action == "DOCS_READ":
+        result = read_document(
+            doc_id=params.get('doc_id'),
+            user_email=user_email
+        )
+        action_name = "Document Read"
+
     elif action == "DOCS_APPEND":
-        from google_services.docs_utils import append_to_document
         result = append_to_document(
             doc_id=params.get('doc_id'),
             content=params.get('text'),
             user_email=user_email
         )
         action_name = "Text Appended to Document"
+
+    elif action == "DOCS_UPDATE":
+        result = replace_text_in_document(
+            doc_id=params.get('doc_id'),
+            find_text=params.get('find_text'),
+            replace_text=params.get('replace_text'),
+            user_email=user_email
+        )
+        action_name = "Document Text Replaced"
+
+    elif action == "DOCS_DELETE":
+        result = delete_document(
+            doc_id=params.get('doc_id'),
+            user_email=user_email
+        )
+        action_name = "Document Deleted"
 
     else:
         result = {"success": False, "message": f"Unknown action: {action}"}

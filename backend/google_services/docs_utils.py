@@ -292,3 +292,34 @@ def search_documents(query: str, user_email: str = None):
 
     except Exception as e:
         return {"success": False, "message": f"Failed to search documents: {e}"}
+
+
+def delete_document(doc_id: str, user_email: str = None):
+    """
+    Deletes a Google Document (moves to trash).
+    Uses Drive API since Docs are stored as Drive files.
+
+    :param doc_id: The ID of the document to delete.
+    :param user_email: Email of the user (for token retrieval).
+    """
+    drive_service, error = get_google_service("drive", "v3", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        service, _ = get_google_service("docs", "v1", user_email)
+        doc = service.documents().get(documentId=doc_id).execute()
+        doc_title = doc.get('title', 'Untitled')
+
+        drive_service.files().delete(fileId=doc_id).execute()
+
+        return {
+            "success": True,
+            "message": f"Document '{doc_title}' deleted successfully.",
+            "details": {
+                "doc_id": doc_id
+            }
+        }
+
+    except Exception as e:
+        return {"success": False, "message": f"Failed to delete document: {e}"}

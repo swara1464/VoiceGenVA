@@ -301,3 +301,135 @@ def download_attachment(message_id: str, attachment_id: str, user_email=None):
         }
     except Exception as e:
         return {"success": False, "message": f"Failed to download attachment: {e}"}
+
+
+def update_email_labels(message_id: str, add_labels: list = None, remove_labels: list = None, user_email=None):
+    """
+    Update labels on an email (mark as read/unread, archive, star, etc.).
+
+    Common labels:
+    - UNREAD: Mark as unread
+    - INBOX: Keep in inbox
+    - STARRED: Star the email
+    - TRASH: Move to trash
+
+    :param message_id: The ID of the message to modify
+    :param add_labels: List of label IDs to add (e.g., ['STARRED', 'IMPORTANT'])
+    :param remove_labels: List of label IDs to remove (e.g., ['UNREAD', 'INBOX'])
+    :param user_email: Email of the user (for token retrieval)
+    :return: Dictionary with success status
+    """
+    service, error = get_google_service("gmail", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        body = {}
+        if add_labels:
+            body["addLabelIds"] = add_labels
+        if remove_labels:
+            body["removeLabelIds"] = remove_labels
+
+        result = service.users().messages().modify(
+            userId="me",
+            id=message_id,
+            body=body
+        ).execute()
+
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_UPDATE", "SUCCESS", {
+                "messageId": message_id,
+                "addLabels": add_labels,
+                "removeLabels": remove_labels
+            })
+
+        action_desc = []
+        if add_labels:
+            action_desc.append(f"added {', '.join(add_labels)}")
+        if remove_labels:
+            action_desc.append(f"removed {', '.join(remove_labels)}")
+
+        return {
+            "success": True,
+            "message": f"Email labels updated: {' and '.join(action_desc)}",
+            "details": result
+        }
+    except Exception as e:
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_UPDATE", "FAILED", {
+                "messageId": message_id,
+                "error": str(e)
+            })
+        return {"success": False, "message": f"Failed to update email: {e}"}
+
+
+def mark_as_read(message_id: str, user_email=None):
+    """
+    Mark an email as read.
+    """
+    return update_email_labels(message_id, remove_labels=["UNREAD"], user_email=user_email)
+
+
+def mark_as_unread(message_id: str, user_email=None):
+    """
+    Mark an email as unread.
+    """
+    return update_email_labels(message_id, add_labels=["UNREAD"], user_email=user_email)
+
+
+def archive_email(message_id: str, user_email=None):
+    """
+    Archive an email (remove from inbox).
+    """
+    return update_email_labels(message_id, remove_labels=["INBOX"], user_email=user_email)
+
+
+def star_email(message_id: str, user_email=None):
+    """
+    Star an email.
+    """
+    return update_email_labels(message_id, add_labels=["STARRED"], user_email=user_email)
+
+
+def delete_email(message_id: str, permanent: bool = False, user_email=None):
+    """
+    Delete an email (move to trash or permanently delete).
+
+    :param message_id: The ID of the message to delete
+    :param permanent: If True, permanently delete. If False, move to trash (default)
+    :param user_email: Email of the user (for token retrieval)
+    :return: Dictionary with success status
+    """
+    service, error = get_google_service("gmail", "v1", user_email)
+    if error:
+        return {"success": False, "message": error}
+
+    try:
+        if permanent:
+            service.users().messages().delete(userId="me", id=message_id).execute()
+            action = "permanently deleted"
+        else:
+            service.users().messages().trash(userId="me", id=message_id).execute()
+            action = "moved to trash"
+
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_DELETE", "SUCCESS", {
+                "messageId": message_id,
+                "permanent": permanent
+            })
+
+        return {
+            "success": True,
+            "message": f"Email {action} successfully"
+        }
+    except Exception as e:
+        from logs.log_utils import log_execution
+        if user_email:
+            log_execution(user_email, "GMAIL_DELETE", "FAILED", {
+                "messageId": message_id,
+                "error": str(e)
+            })
+        return {"success": False, "message": f"Failed to delete email: {e}"}
